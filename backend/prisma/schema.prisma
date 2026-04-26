@@ -1,0 +1,96 @@
+// This is your Prisma schema file
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String?
+  avatarUrl    String?  @map("avatar_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  refreshTokens RefreshToken[]
+  oauthAccounts OAuthAccount[]
+  emails        Email[]
+  chatHistories ChatHistory[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model OAuthAccount {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  provider     String   // "gmail" | "discord"
+  accessToken  String?  @map("access_token")  // AES encrypted
+  refreshToken String?  @map("refresh_token") // AES encrypted
+  scope        String?
+  metadata     Json?    // discord: { userId, username, guildId, channelId }
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@map("oauth_accounts")
+}
+
+model Email {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  gmailId      String?  @unique @map("gmail_id")
+  subject      String?
+  fromAddress  String?  @map("from_address")
+  toAddress    String?  @map("to_address")
+  bodyPreview  String?  @map("body_preview")
+  summary      String?
+  category     String?  // Work, Personal, Ads, Invoice, Social
+  priority     String?  // High, Medium, Low
+  isRead       Boolean  @default(false) @map("is_read")
+  isStarred    Boolean  @default(false) @map("is_starred")
+  labels       String[] @default([])
+  receivedAt   DateTime? @map("received_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, receivedAt(sort: Desc)])
+  @@index([userId, category])
+  @@map("emails")
+}
+
+model ChatHistory {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  sessionId String   @map("session_id")
+  role      String   // "user" | "assistant"
+  content   String
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, sessionId])
+  @@map("chat_history")
+}

@@ -1,6 +1,6 @@
 # 📧 AI Email Manager SaaS
 
-Hệ thống quản lý và tối ưu hóa Email thông minh ứng dụng Trí tuệ nhân tạo (AI), được xây dựng trên mô hình Full-stack hiện đại.
+Hệ thống quản lý và tối ưu hóa Email thông minh sử dụng n8n workflow, AWS, Discord, Gmail, RAG chatbot.
 
 ---
 

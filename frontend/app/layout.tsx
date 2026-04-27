@@ -5,6 +5,8 @@ import { Toaster } from 'react-hot-toast';
 
 const inter = Inter({ subsets: ['latin'] });
 
+import { AuthProvider } from '@/lib/auth-context';
+
 export const metadata: Metadata = {
   title: 'AI Email Manager — Smart Email Assistant',
   description:
@@ -20,18 +22,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body className={inter.className} style={{ background: '#050914' }}>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: '#0E1629',
-              color: '#e2e8f0',
-              border: '1px solid rgba(59,130,246,0.2)',
-              borderRadius: '12px',
-            },
-          }}
-        />
-        {children}
+        <AuthProvider>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: '#0E1629',
+                color: '#e2e8f0',
+                border: '1px solid rgba(59,130,246,0.2)',
+                borderRadius: '12px',
+              },
+            }}
+          />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

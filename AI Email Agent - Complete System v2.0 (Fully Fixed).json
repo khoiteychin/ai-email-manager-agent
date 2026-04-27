@@ -1,0 +1,1762 @@
+{
+  "name": "AI Email Agent - Complete System v2.0 (Fully Fixed)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🤖 AI Email Agent - Hệ thống hoàn chỉnh\n\n### Flow A (màu cam): Email Ingestion\nGmail Trigger → Lấy nội dung → Phân loại + Tóm tắt (Gemini) → Lưu PGVector → Thông báo WhatsApp\n\n### Flow B (màu xanh): WhatsApp RAG Agent\nWhatsApp Webhook → Phát hiện intent → RAG Chat / Tạo Draft / Cài đặt / Help\n\n### ⚠️ Cần thay thế Credential IDs:\n- GMAIL_CRED_ID → ID credential Gmail OAuth2\n- OPENAI_CRED_ID → ID credential OpenAI\n- POSTGRES_CRED_ID → ID credential PostgreSQL\n- WHATSAPP_CRED_ID → ID credential WhatsApp Business\n\n### 📦 SQL Setup (chạy trên RDS trước):\n```sql\nCREATE EXTENSION IF NOT EXISTS vector;\n\nCREATE TABLE IF NOT EXISTS emails_vector_store (\n  id bigserial PRIMARY KEY,\n  content text,\n  metadata jsonb,\n  embedding vector(1536)\n);\n\nCREATE INDEX ON emails_vector_store\n  USING hnsw (embedding vector_cosine_ops);\n\nCREATE TABLE IF NOT EXISTS user_preferences (\n  phone_number varchar(30) PRIMARY KEY,\n  email_style varchar(50) DEFAULT 'professional',\n  response_language varchar(10) DEFAULT 'vi',\n  summary_length varchar(20) DEFAULT 'medium',\n  custom_categories jsonb DEFAULT '[\"Công việc\",\"Cá nhân\",\"Mạng xã hội\",\"Quảng cáo\",\"Hóa đơn\",\"Khác\"]',\n  updated_at timestamp DEFAULT NOW()\n);\n\nCREATE TABLE IF NOT EXISTS n8n_chat_histories (\n  id serial PRIMARY KEY,\n  session_id varchar(255),\n  data jsonb,\n  created_at timestamp DEFAULT NOW()\n);\n```",
+        "height": 872,
+        "width": 540,
+        "color": 7
+      },
+      "id": "7f93bfae-09d2-45de-8859-3602ca456d69",
+      "name": "📋 Tài liệu hệ thống",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -224,
+        -176
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## 📨 FLOW A: Email Ingestion\nTự động xử lý email mới → Vector Store → Discord",
+        "height": 1844,
+        "width": 2532,
+        "color": 3
+      },
+      "id": "7ba68b1c-892a-4775-8d62-092e81a8e687",
+      "name": "Flow A Header",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        784,
+        0
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "id": "10518394-e395-4f5a-9d55-8fad79e1fe0e",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "position": [
+        864,
+        256
+      ],
+      "typeVersion": 1.2,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "aM3g17gbLV4PnGsM",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "id": "5dbd16b5-c74c-4f8d-81f2-e74e2824af78",
+      "name": "Get Mail Data",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        1056,
+        256
+      ],
+      "typeVersion": 2.1,
+      "webhookId": "e482947e-9143-4d01-81c3-a5fec60c5ebd",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "aM3g17gbLV4PnGsM",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// Xử lý kết quả AI — tách biệt AI output vs dữ liệu email gốc\n// ============================================================\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // -----------------------------------------------------------\n  // 1. LẤY DỮ LIỆU EMAIL GỐC từ node \"Get Mail Data\"\n  // -----------------------------------------------------------\n  let emailData = {};\n  try {\n    emailData = $('Get Mail Data').item.json;\n  } catch (e) {\n    // Nếu không tìm được, fallback về item hiện tại\n    emailData = item.json;\n  }\n\n  // -----------------------------------------------------------\n  // 2. EXTRACT AI OUTPUT (từ node \"Message a model\")\n  // Hỗ trợ nhiều format output của OpenAI / Langchain node\n  // -----------------------------------------------------------\n  const aiRaw = item.json;\n  let rawString =\n    // n8n OpenAI node (langchain) v2.x\n    aiRaw?.content?.[0]?.text ||\n    aiRaw?.content?.[0]?.content ||\n    (Array.isArray(aiRaw?.content) ? aiRaw.content.map(c => c.text || c.content || '').join('') : '') ||\n    // n8n OpenAI node legacy\n    aiRaw?.choices?.[0]?.message?.content ||\n    // Generic fallbacks\n    aiRaw?.output?.[0]?.content?.[0]?.text ||\n    aiRaw?.output?.[0]?.text ||\n    aiRaw?.output_text ||\n    aiRaw?.message?.content ||\n    aiRaw?.text ||\n    (typeof aiRaw?.content === 'string' ? aiRaw.content : '') ||\n    '';\n\n  // -----------------------------------------------------------\n  // 3. PARSE JSON từ AI output\n  // -----------------------------------------------------------\n  let aiResult = {};\n  if (typeof rawString === 'string' && rawString.includes('{')) {\n    try {\n      const clean = rawString\n        .replace(/```json/gi, '')\n        .replace(/```/g, '')\n        .trim();\n      // Tìm block JSON đầu tiên nếu có text thừa xung quanh\n      const jsonMatch = clean.match(/\\{[\\s\\S]*\\}/);\n      if (jsonMatch) {\n        aiResult = JSON.parse(jsonMatch[0]);\n      }\n    } catch (e) {\n      // AI không trả JSON hợp lệ → giữ nguyên rỗng, fallback bên dưới\n    }\n  }\n\n  // -----------------------------------------------------------\n  // 4. NỘI DUNG EMAIL (body) — lấy từ email gốc\n  // -----------------------------------------------------------\n  const bodyText = (\n    emailData.text ||\n    emailData.textPlain ||\n    emailData.snippet ||\n    ''\n  ).trim();\n\n  const textLower = bodyText.toLowerCase();\n\n  // -----------------------------------------------------------\n  // 5. SUBJECT — từ email gốc\n  // -----------------------------------------------------------\n  const subject =\n    emailData.subject ||\n    emailData.headers?.subject ||\n    '(không có tiêu đề)';\n\n  // -----------------------------------------------------------\n  // 6. FROM — hỗ trợ cả Gmail full format và simple format\n  // -----------------------------------------------------------\n  let from_name = '';\n  let from_address = '';\n\n  if (emailData.from?.value?.[0]?.address) {\n    from_name    = emailData.from.value[0].name    || '';\n    from_address = emailData.from.value[0].address || '';\n  } else if (typeof emailData.from === 'string') {\n    const match = emailData.from.match(/^(.*?)\\s*<(.+?)>$/);\n    if (match) {\n      from_name    = match[1].trim();\n      from_address = match[2].trim();\n    } else {\n      from_address = emailData.from.trim();\n    }\n  } else if (emailData.headers?.from) {\n    const match = emailData.headers.from.match(/^(.*?)\\s*<(.+?)>$/);\n    if (match) {\n      from_name    = match[1].trim();\n      from_address = match[2].trim();\n    } else {\n      from_address = emailData.headers.from.trim();\n    }\n  }\n\n  // -----------------------------------------------------------\n  // 7. TO ADDRESS\n  // -----------------------------------------------------------\n  let to_address = '';\n  if (emailData.to?.value?.[0]?.address) {\n    to_address = emailData.to.value[0].address;\n  } else if (typeof emailData.to === 'string') {\n    const m = emailData.to.match(/<(.+?)>/);\n    to_address = m ? m[1] : emailData.to.trim();\n  }\n\n  // -----------------------------------------------------------\n  // 8. MESSAGE ID & DATE\n  // -----------------------------------------------------------\n  const message_id =\n    emailData.id ||\n    emailData.messageId ||\n    emailData.message_id ||\n    '';\n\n  const emailDate =\n    emailData.date ||\n    emailData.internalDate ||\n    new Date().toISOString();\n\n  // -----------------------------------------------------------\n  // 9. AI FIELDS — ưu tiên kết quả AI, fallback về rule-based\n  // -----------------------------------------------------------\n\n  // CATEGORY\n  let category = aiResult.category || '';\n  if (!category || category === 'Khác') {\n    if (/otp|mã xác nhận|verification code|security code/.test(textLower))     category = 'OTP/Bảo mật';\n    else if (/invoice|receipt|bill|payment|hóa đơn/.test(textLower))           category = 'Hóa đơn';\n    else if (/sale|discount|promotion|offer|unsubscribe|khuyến mãi/.test(textLower)) category = 'Quảng cáo';\n    else if (/facebook|instagram|linkedin|twitter/.test(textLower))             category = 'Mạng xã hội';\n    else if (/meeting|deadline|project|client|họp|dự án/.test(textLower))      category = 'Công việc';\n    else if (/đi chơi|cafe|ăn|hẹn|party/.test(textLower))                      category = 'Cá nhân';\n    else                                                                         category = aiResult.category || 'Khác';\n  }\n\n  // PRIORITY\n  let priority = aiResult.priority || '';\n  if (!priority) {\n    if (/otp|gấp|asap|hôm nay|urgent/.test(textLower)) priority = 'high';\n    else if (category === 'Công việc')                  priority = 'medium';\n    else                                                priority = 'low';\n  }\n\n  // SUMMARY\n  let summary = (aiResult.summary || '').trim();\n  if (!summary) summary = bodyText.slice(0, 200) || 'Email ngắn, không đủ thông tin để tóm tắt';\n\n  // KEY POINTS\n  let key_points = Array.isArray(aiResult.key_points) ? aiResult.key_points : [];\n  if (key_points.length === 0 && summary) key_points = [summary];\n\n  // SUGGESTED ACTION\n  const suggested_action = (aiResult.suggested_action || '').trim();\n\n  // REPLY NEEDED\n  const reply_needed =\n    typeof aiResult.reply_needed === 'boolean'\n      ? aiResult.reply_needed\n      : category === 'Công việc';\n\n  // SENTIMENT\n  const sentiment = aiResult.sentiment || 'neutral';\n\n  // -----------------------------------------------------------\n  // 10. discord MESSAGE\n  // -----------------------------------------------------------\n  const priorityLabel =\n    priority === 'high'   ? '🔴 Cao' :\n    priority === 'medium' ? '🟡 Trung bình' :\n                            '🟢 Thấp';\n\n  const discord_message =\n`📧 *Email mới*\n\n📂 *Loại:* ${category}\n⚡ *Ưu tiên:* ${priorityLabel}\n👤 *Từ:* ${from_name}${from_address ? ' (' + from_address + ')' : ''}\n📌 *Tiêu đề:* ${subject}\n📅 *Ngày:* ${emailDate}\n\n📝 *Tóm tắt:*\n${summary}\n\n${key_points.length > 0 ? '🔑 *Điểm chính:*\\n' + key_points.map(p => '• ' + p).join('\\n') + '\\n\\n' : ''}${suggested_action ? '💡 *Đề xuất:* ' + suggested_action + '\\n\\n' : ''}${reply_needed ? '⚠️ _Email này cần trả lời_' : ''}\n\n_Hỏi về email này: gõ câu hỏi bất kỳ_`;\n\n  // -----------------------------------------------------------\n  // 11. OUTPUT\n  // -----------------------------------------------------------\n  results.push({\n    json: {\n      category,\n      priority,\n      summary,\n      key_points,\n      suggested_action,\n      reply_needed,\n      sentiment,\n      subject,\n      from_name,\n      from_address,\n      to_address,\n      date: emailDate,\n      message_id,\n      body_text: bodyText,\n      id: message_id,\n      discord_message\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "1abc02d0-93df-4267-ba67-9ad0b698888c",
+      "name": "Xử lý kết quả AI",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1904,
+        368
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": "emails_vector_store",
+        "options": {}
+      },
+      "id": "cf425db2-2329-4b97-9fce-f1177d1b55ed",
+      "name": "Lưu vào PGVector Store",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "position": [
+        2576,
+        144
+      ],
+      "typeVersion": 1.1,
+      "credentials": {
+        "postgres": {
+          "id": "Q2QaY0gIdhm3uejK",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "961b7d17-5ae0-40c5-9304-7597aadae10d",
+      "name": "Embeddings for Insert",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [
+        2544,
+        352
+      ],
+      "typeVersion": 1.2,
+      "credentials": {
+        "openAiApi": {
+          "id": "vbRC2U9OSkNHcBrl",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $('Xử lý kết quả AI').item.json.subject + '\\n\\n' + ($('Xử lý kết quả AI').item.json.body_text || '') }}",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "source",
+                "value": "gmail"
+              },
+              {
+                "name": "message_id",
+                "value": "={{ $('Xử lý kết quả AI').item.json.message_id }}"
+              },
+              {
+                "name": "category",
+                "value": "={{ $('Xử lý kết quả AI').item.json.category }}"
+              },
+              {
+                "name": "from_address",
+                "value": "={{ $('Xử lý kết quả AI').item.json.from_address }}"
+              },
+              {
+                "name": "from_name",
+                "value": "={{ $('Xử lý kết quả AI').item.json.from_name }}"
+              },
+              {
+                "name": "subject",
+                "value": "={{ $('Xử lý kết quả AI').item.json.subject }}"
+              },
+              {
+                "name": "date",
+                "value": "={{ $('Xử lý kết quả AI').item.json.date }}"
+              },
+              {
+                "name": "priority",
+                "value": "={{ $('Xử lý kết quả AI').item.json.priority }}"
+              },
+              {
+                "name": "reply_needed",
+                "value": "={{ $('Xử lý kết quả AI').item.json.reply_needed }}"
+              },
+              {
+                "name": "sentiment",
+                "value": "={{ $('Xử lý kết quả AI').item.json.sentiment }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "57550332-6054-4b5a-ae77-7fca3a8d81bc",
+      "name": "Email Data Loader",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "position": [
+        2784,
+        352
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "chunkSize": 1500,
+        "chunkOverlap": 150,
+        "options": {}
+      },
+      "id": "a65e1665-fee8-4fc9-aafb-4f1575f9f132",
+      "name": "Email Text Splitter",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "position": [
+        2944,
+        544
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "wa-msg-1",
+              "name": "wa_message",
+              "value": "={{ \n'📧 *Email mới*\\n\\n' +\n'📂 *Loại:* ' + $json.category + '\\n' +\n'⚡ *Ưu tiên:* ' + ($json.priority === 'high' ? '🔴 Cao' : $json.priority === 'medium' ? '🟡 Trung bình' : '🟢 Thấp') + '\\n' +\n'👤 *Từ:* ' + $json.from_name + ' (' + $json.from_address + ')\\n' +\n'📌 *Tiêu đề:* ' + $json.subject + '\\n' +\n'📅 *Ngày:* ' + $json.date + '\\n\\n' +\n'📝 *Tóm tắt:*\\n' + $json.summary + '\\n\\n' +\n($json.key_points?.length > 0 ? '🔑 *Điểm chính:*\\n' + $json.key_points.map(p => '• ' + p).join('\\n') + '\\n\\n' : '') +\n($json.suggested_action ? '💡 *Đề xuất:* ' + $json.suggested_action + '\\n\\n' : '') +\n($json.reply_needed ? '⚠️ _Email này cần trả lời_' : '') +\n'\\n\\n_Hỏi về email này: gõ câu hỏi bất kỳ_'\n}}",
+              "type": "string"
+            },
+            {
+              "id": "wa-msg-2",
+              "name": "recipient_phone",
+              "value": "0961664349",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a55305f7-ff75-437e-ac19-5bb178263a6a",
+      "name": "Tạo tin nhắn Discord",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        2320,
+        560
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "intent-chat",
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "Cá nhân",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Cá nhân"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "intent-draft",
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "Công việc",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Công việc"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "intent-prefs",
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "Mạng xã hội",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Mạng xã hội"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "intent-help",
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "Hoá đơn",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Hoá đơn"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6cc68708-a1d5-428c-a664-99f719007e6c",
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "Khác",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Khác"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "04e5d9bd-9e0e-4b82-b843-360bf3c0c993",
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "Quảng cáo",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Quảng cáo"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4df83541-811e-41a9-a9b3-8880f74f5887",
+      "name": "Phân luồng theo Intent1",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        2208,
+        992
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "labelIds": [
+          "Label_1988667992165077584"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2672,
+        768
+      ],
+      "id": "45478ac5-8933-49f6-b29b-62563c16e5d1",
+      "name": "Cá nhân",
+      "webhookId": "2fccf4af-8c76-4b3d-ab71-623bc54f96b9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "aM3g17gbLV4PnGsM",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "labelIds": [
+          "Label_1679528670208077481"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2672,
+        944
+      ],
+      "id": "a2b4209e-6427-46a5-b121-d6c67db38ad5",
+      "name": "Công việc",
+      "webhookId": "2fccf4af-8c76-4b3d-ab71-623bc54f96b9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "aM3g17gbLV4PnGsM",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "labelIds": [
+          "Label_5717814711797274905"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2672,
+        1104
+      ],
+      "id": "e6030465-25b7-468f-9533-d9d575364847",
+      "name": "Mạng xã hội",
+      "webhookId": "2fccf4af-8c76-4b3d-ab71-623bc54f96b9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "aM3g17gbLV4PnGsM",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "labelIds": [
+          "Label_274030861553114605"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2672,
+        1280
+      ],
+      "id": "48963943-fb09-4b7c-87db-8e96557cd645",
+      "name": "Hoá đơn",
+      "webhookId": "2fccf4af-8c76-4b3d-ab71-623bc54f96b9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "aM3g17gbLV4PnGsM",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "labelIds": [
+          "Label_6370485165580022646"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2656,
+        1632
+      ],
+      "id": "5db0c544-3fb4-475c-913a-d1be3e7b3940",
+      "name": "Quảng cáo",
+      "webhookId": "2fccf4af-8c76-4b3d-ab71-623bc54f96b9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "aM3g17gbLV4PnGsM",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $('Gmail Trigger').item.json.id }}",
+        "labelIds": [
+          "Label_3139644122484525406"
+        ]
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2672,
+        1440
+      ],
+      "id": "2a7786ab-5297-4315-b250-60e46d82d7ac",
+      "name": "Khác",
+      "webhookId": "2fccf4af-8c76-4b3d-ab71-623bc54f96b9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "aM3g17gbLV4PnGsM",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1491467637887340664",
+          "mode": "list",
+          "cachedResultName": "Máy chủ của KhoiTeyChin",
+          "cachedResultUrl": "https://discord.com/channels/1491467637887340664"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1491470225655206008",
+          "mode": "list",
+          "cachedResultName": "email-manager-bot",
+          "cachedResultUrl": "https://discord.com/channels/1491467637887340664/1491470225655206008"
+        },
+        "content": "= {{ $json.wa_message }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        2592,
+        624
+      ],
+      "id": "13997523-8370-43d4-910c-1ab3cae8be73",
+      "name": "Send a message",
+      "webhookId": "1bc61c77-5e52-4fee-86c3-a27a3dc28948",
+      "credentials": {
+        "discordBotApi": {
+          "id": "EXUpFsvZhb5odCaJ",
+          "name": "Discord Webhook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Bạn là trợ lý AI chuyên xử lý email.\n\nNhiệm vụ:\n1. Phân loại email vào 1 trong các nhóm:\n- Hóa đơn\n- Quảng cáo\n- Mạng xã hội\n- Công việc\n- Cá nhân\n- Khác\n\n2. Xác định mức độ ưu tiên:\n- high (gấp, OTP, deadline gần)\n- medium (công việc bình thường)\n- low (còn lại)\n\n3. Tóm tắt email:\n- Viết 1-2 câu tiếng Việt\n- Không được bịa thêm thông tin\n- Nếu nội dung quá ngắn → viết lại thành câu đầy đủ, rõ nghĩa\n\n4. Trích xuất:\n- key_points: các ý chính (2–4 ý)\n- suggested_action: nên làm gì tiếp theo\n- reply_needed: email này có cần trả lời không (true/false)\n- sentiment: positive | neutral | negative\n\n---\n\nEMAIL:\nTiêu đề: {{$json.subject}}\nNội dung:\n{{$json.text}}\n\n---\n\nQUY TẮC QUAN TRỌNG:\n- Chỉ sử dụng thông tin có trong email\n- Không suy đoán ngoài dữ liệu\n- Nếu không đủ thông tin → ghi \"Không rõ\"\n- Output PHẢI là JSON hợp lệ (không text thừa)\n\n---\n\nTrả về đúng format JSON:\n\n{\n  \"category\": \"...\",\n  \"priority\": \"...\",\n  \"summary\": \"...\",\n  \"key_points\": [\"...\", \"...\"],\n  \"suggested_action\": \"...\",\n  \"reply_needed\": true,\n  \"sentiment\": \"...\"\n}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        1296,
+        256
+      ],
+      "id": "247952b8-b963-4307-a665-7aa02b696c89",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "vbRC2U9OSkNHcBrl",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 💬 FLOW B: Discords AI Agent\nRAG Chatbot + Draft Email + Quản lý tùy chỉnh",
+        "height": 1572,
+        "width": 2836,
+        "color": 5
+      },
+      "id": "bac625e0-de5d-41b8-a064-9dcc1f03bf4c",
+      "name": "Flow B Header",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        752,
+        2032
+      ],
+      "typeVersion": 1,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": "Bạn là một AI Email Assistant thông minh, tích hợp với Discord.\n\n=====================\nTHÔNG TIN NGƯỜI DÙNG\n=====================\n- Văn phong: chuyên nghiệp, rõ ràng\n- Ngôn ngữ: vi\n- Mức độ tóm tắt: ngắn gọn\n\n=====================\nNHIỆM VỤ\n=====================\n1. Trả lời câu hỏi về email dựa trên dữ liệu từ vector database\n2. Tìm kiếm email liên quan khi người dùng yêu cầu\n3. Tóm tắt email theo mức độ yêu cầu\n4. Phân tích nội dung email (ý chính, người gửi, hành động cần thiết)\n5. Gợi ý hành động tiếp theo\n\n=====================\nQUY TẮC QUAN TRỌNG\n=====================\n- KHÔNG được bịa thông tin nếu không có trong database\n- Nếu không tìm thấy dữ liệu, trả lời: 'Không tìm thấy thông tin phù hợp trong hệ thống.'\n- Luôn trả lời bằng tiếng Việt\n- Tối ưu format cho WhatsApp:\n  - Dùng *bold* cho tiêu đề\n  - Dùng _italic_ cho ghi chú\n  - Dùng emoji hợp lý (📧, 📌, ⚠️, ✅)\n- Câu trả lời phải ngắn gọn, dễ đọc, có cấu trúc rõ ràng\n\n=====================\nXỬ LÝ LỆNH ĐẶC BIỆT\n=====================\n- Nếu tin nhắn bắt đầu bằng '/draft': Tạo email draft chuyên nghiệp\n- Nếu tin nhắn bắt đầu bằng '/prefs': Hướng dẫn người dùng cập nhật cài đặt\n- Nếu tin nhắn bắt đầu bằng '/help': Trả về hướng dẫn sử dụng\n\n=====================\nOUTPUT FORMAT\n=====================\nLuôn trả về text (KHÔNG JSON). Không thêm giải thích ngoài nội dung trả lời."
+        }
+      },
+      "id": "1a3ab4a0-f484-419f-b93b-8e56ad313b64",
+      "name": "RAG AI Agent1",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        2176,
+        2960
+      ],
+      "typeVersion": 1.7
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "tim_kiem_email",
+        "toolDescription": "Tìm kiếm email trong database. Dùng khi cần tìm email liên quan đến chủ đề, người gửi, thời gian hoặc bất kỳ nội dung nào. Hãy bao gồm thông tin thời gian trong query nếu người dùng hỏi về khoảng thời gian cụ thể.",
+        "tableName": "emails_vector_store",
+        "topK": 5,
+        "options": {}
+      },
+      "id": "ba1b945a-2d60-489e-8e4e-e981070340c8",
+      "name": "RAG PGVector Tool1",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "position": [
+        2256,
+        3232
+      ],
+      "typeVersion": 1.1,
+      "credentials": {
+        "postgres": {
+          "id": "Q2QaY0gIdhm3uejK",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "42157f15-896e-475a-b336-9cf9283ca8cc",
+      "name": "RAG Embeddings1",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [
+        2336,
+        3392
+      ],
+      "typeVersion": 1.2,
+      "credentials": {
+        "openAiApi": {
+          "id": "vbRC2U9OSkNHcBrl",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "name": "sessionId",
+              "value": "={{ $json.session_id }}",
+              "type": "string",
+              "id": "655b8b9e-d466-4053-9347-34a6c97b060b"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.message }}",
+              "type": "string",
+              "id": "1b445b67-5793-4329-8785-8221763dd312"
+            },
+            {
+              "name": "channelId",
+              "value": "={{ $('Webhook').item.json.body.channelId }}",
+              "type": "string",
+              "id": "b19c28a9-c494-42b4-b19d-c36ae36bb248"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1264,
+        2464
+      ],
+      "id": "e0aca48e-9f93-4f80-b9ba-1eb7682cf58e",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        2016,
+        3200
+      ],
+      "id": "4f86508a-da46-49d5-8982-adb7b760b784",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "vbRC2U9OSkNHcBrl",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "discord-agent",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        864,
+        2464
+      ],
+      "id": "1c051acf-6c81-4792-bacc-7de334545825",
+      "name": "Webhook",
+      "webhookId": "3aa357c3-b0ff-4244-b037-76ed17f8330b"
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1491467637887340664",
+          "mode": "list",
+          "cachedResultName": "Máy chủ của KhoiTeyChin",
+          "cachedResultUrl": "https://discord.com/channels/1491467637887340664"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1491470225655206008",
+          "mode": "list",
+          "cachedResultName": "email-manager-bot",
+          "cachedResultUrl": "https://discord.com/channels/1491467637887340664/1491470225655206008"
+        },
+        "content": "={{ $json.output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        2848,
+        3088
+      ],
+      "id": "948c3cbc-3f07-4e38-9439-1c6d2d1dd133",
+      "name": "Send a message1",
+      "webhookId": "fbf837f7-2b2a-4c80-bb6d-d34e0e59ef7d",
+      "credentials": {
+        "discordBotApi": {
+          "id": "EXUpFsvZhb5odCaJ",
+          "name": "Discord Webhook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.item.json.body;\n\nconst userId = body.userId || '';\nconst username = body.username || 'unknown';\nconst messageText = (body.content || '').trim();\nconst channelId = body.channelId || '';\n\nif (!messageText) return [];\n\nconst lowerText = messageText.toLowerCase();\n\n// default\nlet intent = 'chat';\nlet commandArgs = messageText;\n\n// ========================\n// DRAFT\n// ========================\nif (/^(\\/draft\\b|tạo draft|soạn draft|draft email)/i.test(lowerText)) {\n  intent = 'draft';\n  commandArgs = messageText.replace(/^(\\/draft\\s*|tạo draft\\s*|soạn draft\\s*|draft email\\s*)/i, '').trim();\n}\n\n// ========================\n// SEND\n// ========================\nelse if (/^(\\/send\\b|gửi email|send email)/i.test(lowerText)) {\n  intent = 'send';\n  commandArgs = messageText.replace(/^(\\/send\\s*|gửi email\\s*|send email\\s*)/i, '').trim();\n}\n\n\n// ========================\n// EMAIL / RAG QUERY\n// ========================\nelse if (/(email|hộp thư|tin nhắn|đọc|tóm tắt|kiểm tra|tìm)/i.test(lowerText)) {\n  intent = 'chat';\n}\n\n// ========================\n// DEFAULT\n// ========================\nelse {\n  intent = 'chat';\n}\n\nreturn [{\n  json: {\n    userId,\n    username,\n    message: messageText,\n    intent,\n    commandArgs,\n    messageType: 'text',\n    timestamp: Date.now(),\n    channelId\n  }\n}];"
+      },
+      "id": "5f966261-6909-4298-a3ae-b36ea33e5fa8",
+      "name": "Parse Discord Message",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1056,
+        2464
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy lịch sử chat từ biến toàn cục\nconst sessionId = $json.sessionId;\nconst globalKey = `chat_history_${sessionId}`;\n\n// Lấy history từ global (nếu có)\nlet history = $getWorkflowStaticData('global')[globalKey] || [];\n\n// Thêm tin nhắn hiện tại\nhistory.push({\n  role: 'user',\n  content: $json.message\n});\n\n// Chỉ giữ 10 tin nhắn gần nhất\nif (history.length > 10) {\n  history = history.slice(-10);\n}\n\n// Lưu lại\n$getWorkflowStaticData('global')[globalKey] = history;\n\n// Tạo context cho AI\nconst context = history.map(msg => \n  `${msg.role === 'user' ? 'Người dùng' : 'Trợ lý'}: ${msg.content}`\n).join('\\n');\n\nreturn [{\n  json: {\n    ...$json,\n    chat_context: context,\n    message: $json.message\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        2464
+      ],
+      "id": "dc02ee70-7ae4-4a8e-ade2-93c1d1556ca4",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        2144,
+        3216
+      ],
+      "id": "f4e4e914-f91b-44e0-817c-987b42ca4f99",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "Q2QaY0gIdhm3uejK",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1491467637887340664",
+          "mode": "list",
+          "cachedResultName": "Máy chủ của KhoiTeyChin"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1491470225655206008",
+          "mode": "list",
+          "cachedResultName": "email-manager-bot"
+        },
+        "content": "=✅ *Email đã được gửi thành công!*\n\n📌 *Tiêu đề:* {{ $('Code in JavaScript2').item.json.subject }}\n📧 *Gửi đến:* {{ $('Code in JavaScript2').item.json.to }}\n\n_Kiểm tra Gmail Sent để xác nhận._",
+        "options": {}
+      },
+      "id": "9647913f-2fe4-493c-a18b-4656ab1590bf",
+      "name": "Thông báo Email Sent",
+      "type": "n8n-nodes-base.discord",
+      "position": [
+        3088,
+        2528
+      ],
+      "typeVersion": 2,
+      "webhookId": "9b69ff77-1375-4c03-9beb-a771d4c609f3",
+      "credentials": {
+        "discordBotApi": {
+          "id": "EXUpFsvZhb5odCaJ",
+          "name": "Discord Webhook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "guildId": {
+          "__rl": true,
+          "value": "1491467637887340664",
+          "mode": "list",
+          "cachedResultName": "Máy chủ của KhoiTeyChin"
+        },
+        "channelId": {
+          "__rl": true,
+          "value": "1491470225655206008",
+          "mode": "list",
+          "cachedResultName": "email-manager-bot"
+        },
+        "content": "=✅ *Draft đã được tạo trong Gmail!*\n\n📌 *Tiêu đề:* {{ $('Code in JavaScript1').item.json.subject }}\n📧 *Gửi đến:* {{ $('Code in JavaScript1').item.json.to }}\n\n_Vào Gmail Drafts để xem và chỉnh sửa trước khi gửi._",
+        "options": {}
+      },
+      "id": "1aa3807b-0d9a-42b3-b587-8ef274caa166",
+      "name": "Thông báo Draft Created",
+      "type": "n8n-nodes-base.discord",
+      "position": [
+        2848,
+        2048
+      ],
+      "typeVersion": 2,
+      "webhookId": "1243e19a-13ce-4834-b004-2e01de069012",
+      "credentials": {
+        "discordBotApi": {
+          "id": "EXUpFsvZhb5odCaJ",
+          "name": "Discord Webhook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "id": "5b506ff5-cc47-4287-9cc3-fe9437fca2f0",
+      "name": "Gửi Gmail",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2832,
+        2528
+      ],
+      "typeVersion": 2.1,
+      "webhookId": "115dbc6d-7851-4ceb-8257-9cdf22d520f3",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "aM3g17gbLV4PnGsM",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "intent-chat",
+                    "leftValue": "={{ $('Parse Discord Message').item.json.intent }}",
+                    "rightValue": "draft",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Draft"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "intent-draft",
+                    "leftValue": "={{ $('Parse Discord Message').item.json.intent }}",
+                    "rightValue": "send",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Send"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "intent-prefs",
+                    "leftValue": "={{ $('Parse Discord Message').item.json.intent }}",
+                    "rightValue": "chat",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Chat"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5d1474ae-1aea-4306-beae-c629863819d8",
+      "name": "Phân luồng theo Intent",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1648,
+        2448
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        2656,
+        2064
+      ],
+      "id": "310254a6-a6d1-427c-9f68-9e11979674f5",
+      "name": "Tạo draft",
+      "webhookId": "08643ba1-9c05-45b5-bcc6-20f82fb86f9c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "aM3g17gbLV4PnGsM",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.item.json.output;\n\nlet data;\n\ntry {\n  data = JSON.parse(raw);\n} catch {\n  data = {\n    to: '',\n    subject: 'Re:',\n    body: raw\n  };\n}\n\nreturn [{\n  json: {\n    ...data,\n    threadId: $json.threadId\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        2064
+      ],
+      "id": "4bc6b775-5214-4ec9-96ab-8e6af06e4f5d",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": "Bạn là AI Email Assistant chuyên nghiệp.\n\nYêu cầu:\n{{ $json.commandArgs }}\n\nQuy tắc:\n- CHỈ trả về JSON hợp lệ\n- KHÔNG markdown, KHÔNG emoji\n- KHÔNG thêm text ngoài JSON\n- Email phải chuyên nghiệp\n\nFormat:\n{\n  \"to\": \"\",\n  \"subject\": \"\",\n  \"body\": \"\"\n}"
+        }
+      },
+      "id": "a54b3957-f6b4-4e27-9c14-c300db732ab8",
+      "name": "RAG AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        2080,
+        2064
+      ],
+      "typeVersion": 1.7
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "tim_kiem_email",
+        "toolDescription": "Tìm kiếm email trong database. Dùng khi cần tìm email liên quan đến chủ đề, người gửi, thời gian hoặc bất kỳ nội dung nào. Hãy bao gồm thông tin thời gian trong query nếu người dùng hỏi về khoảng thời gian cụ thể.",
+        "tableName": "emails_vector_store",
+        "topK": 5,
+        "options": {}
+      },
+      "id": "a71bab0f-48e7-4845-9187-d4812a699077",
+      "name": "RAG PGVector Tool",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "position": [
+        2272,
+        2240
+      ],
+      "typeVersion": 1.1,
+      "credentials": {
+        "postgres": {
+          "id": "Q2QaY0gIdhm3uejK",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "2c6a723d-3f40-45eb-a8eb-10c7ea916e60",
+      "name": "RAG Embeddings",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [
+        2432,
+        2368
+      ],
+      "typeVersion": 1.2,
+      "credentials": {
+        "openAiApi": {
+          "id": "vbRC2U9OSkNHcBrl",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        2000,
+        2272
+      ],
+      "id": "a2113701-e1dd-41b0-90f4-4bac63682d80",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "vbRC2U9OSkNHcBrl",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        2144,
+        2224
+      ],
+      "id": "f95f27cc-713b-453f-9cc7-31638501b7c2",
+      "name": "Postgres Chat Memory1",
+      "credentials": {
+        "postgres": {
+          "id": "Q2QaY0gIdhm3uejK",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message }}",
+        "options": {
+          "systemMessage": "Bạn là AI Email Assistant chuyên nghiệp.\n\nYêu cầu:\n{{ $json.commandArgs }}\n\nQuy tắc:\n- CHỈ trả về JSON hợp lệ\n- KHÔNG markdown, KHÔNG emoji\n- KHÔNG thêm text ngoài JSON\n- Email phải chuyên nghiệp\n\nFormat:\n{\n  \"to\": \"\",\n  \"subject\": \"\",\n  \"body\": \"\"\n}"
+        }
+      },
+      "id": "e0796682-d189-4890-85a5-249de74d1aeb",
+      "name": "RAG AI Agent2",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        2064,
+        2464
+      ],
+      "typeVersion": 1.7
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "tim_kiem_email",
+        "toolDescription": "Tìm kiếm email trong database. Dùng khi cần tìm email liên quan đến chủ đề, người gửi, thời gian hoặc bất kỳ nội dung nào. Hãy bao gồm thông tin thời gian trong query nếu người dùng hỏi về khoảng thời gian cụ thể.",
+        "tableName": "emails_vector_store",
+        "topK": 5,
+        "options": {}
+      },
+      "id": "92db9ab1-5724-4203-ab9f-1567c23c40a5",
+      "name": "RAG PGVector Tool2",
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "position": [
+        2352,
+        2688
+      ],
+      "typeVersion": 1.1,
+      "credentials": {
+        "postgres": {
+          "id": "Q2QaY0gIdhm3uejK",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "02a286b4-2255-4ac8-a9d7-694cd8ed8cb1",
+      "name": "RAG Embeddings2",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "position": [
+        2528,
+        2864
+      ],
+      "typeVersion": 1.2,
+      "credentials": {
+        "openAiApi": {
+          "id": "vbRC2U9OSkNHcBrl",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        2064,
+        2672
+      ],
+      "id": "5e23551e-d531-4332-af0e-174ffe04e37e",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "vbRC2U9OSkNHcBrl",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        2224,
+        2688
+      ],
+      "id": "1306ddb2-9893-4397-9129-23690f1f8daa",
+      "name": "Postgres Chat Memory2",
+      "credentials": {
+        "postgres": {
+          "id": "Q2QaY0gIdhm3uejK",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.item.json.output;\n\nlet data;\n\ntry {\n  data = JSON.parse(raw);\n} catch {\n  data = {\n    to: '',\n    subject: 'Re:',\n    body: raw\n  };\n}\n\nreturn [{\n  json: {\n    ...data,\n    threadId: $json.threadId\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2576,
+        2512
+      ],
+      "id": "163688c5-182b-47cf-82ff-d28a97efc801",
+      "name": "Code in JavaScript2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Mail Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Xử lý kết quả AI": {
+      "main": [
+        [
+          {
+            "node": "Lưu vào PGVector Store",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Tạo tin nhắn Discord",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Phân luồng theo Intent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings for Insert": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Lưu vào PGVector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Lưu vào PGVector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Email Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Mail Data": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Phân luồng theo Intent1": {
+      "main": [
+        [
+          {
+            "node": "Cá nhân",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Công việc",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mạng xã hội",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Hoá đơn",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Khác",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Quảng cáo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Xử lý kết quả AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tạo tin nhắn Discord": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG PGVector Tool1": {
+      "ai_tool": [
+        [
+          {
+            "node": "RAG AI Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Embeddings1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "RAG PGVector Tool1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "RAG AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Discord Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Discord Message": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Phân luồng theo Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "RAG AI Agent1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gửi Gmail": {
+      "main": [
+        [
+          {
+            "node": "Thông báo Email Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Phân luồng theo Intent": {
+      "main": [
+        [
+          {
+            "node": "RAG AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "RAG AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "RAG AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tạo draft": {
+      "main": [
+        [
+          {
+            "node": "Thông báo Draft Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Tạo draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG PGVector Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "RAG AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Embeddings": {
+      "ai_embedding": [
+        [
+          {
+            "node": "RAG PGVector Tool",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "RAG AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "RAG AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG PGVector Tool2": {
+      "ai_tool": [
+        [
+          {
+            "node": "RAG AI Agent2",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Embeddings2": {
+      "ai_embedding": [
+        [
+          {
+            "node": "RAG PGVector Tool2",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "RAG AI Agent2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory2": {
+      "ai_memory": [
+        [
+          {
+            "node": "RAG AI Agent2",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG AI Agent2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Gửi Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "fbc6a2e0-2b35-4213-ac87-6f5c6130ab6c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4a50dffbc86d1fbad7256044ead0c5b90e249afe1d6f47d91a2425ed2a540634"
+  },
+  "id": "eSIT5CJGzIDVSq52",
+  "tags": [
+    {
+      "updatedAt": "2026-04-03T13:51:26.549Z",
+      "createdAt": "2026-04-03T13:51:26.549Z",
+      "id": "9RlvCvj02rGjf80i",
+      "name": "rag"
+    },
+    {
+      "updatedAt": "2026-04-03T13:51:26.565Z",
+      "createdAt": "2026-04-03T13:51:26.565Z",
+      "id": "AUN3olFmN0nWkIBu",
+      "name": "whatsapp"
+    },
+    {
+      "updatedAt": "2026-04-03T13:51:26.471Z",
+      "createdAt": "2026-04-03T13:51:26.471Z",
+      "id": "ISpf5ypVBPRHW6tU",
+      "name": "production"
+    },
+    {
+      "updatedAt": "2026-04-03T13:51:26.571Z",
+      "createdAt": "2026-04-03T13:51:26.571Z",
+      "id": "M9zEeo39unOt5WdE",
+      "name": "email"
+    },
+    {
+      "updatedAt": "2026-04-03T13:51:26.461Z",
+      "createdAt": "2026-04-03T13:51:26.461Z",
+      "id": "mNUfNMxMDfALde4M",
+      "name": "ai"
+    }
+  ]
+}

@@ -30,7 +30,7 @@ def oauth_popup_response(provider: str, success: bool, message: str = "") -> HTM
     <script>
       const payload = {json.dumps(payload)};
       if (window.opener) {{
-        window.opener.postMessage(payload, {json.dumps(settings.FRONTEND_URL)});
+        window.opener.postMessage(payload, "*");
       }}
       window.close();
       setTimeout(() => {{

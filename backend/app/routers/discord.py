@@ -36,7 +36,7 @@ def oauth_popup_response(provider: str, success: bool, message: str = "") -> HTM
     <script>
       const payload = {json.dumps(payload)};
       if (window.opener) {{
-        window.opener.postMessage(payload, {json.dumps(settings.FRONTEND_URL)});
+        window.opener.postMessage(payload, "*");
       }}
       window.close();
       setTimeout(() => {{
@@ -97,16 +97,22 @@ async def callback(code: str, state: str, db: AsyncSession = Depends(get_db)):
 
         account.discord_id = discord_user.get("id")
         account.username = discord_user.get("username")
-        await db.execute(
-            text("""
-                INSERT INTO user_integrations (user_id, provider, updated_at)
-                VALUES (:user_id, 'discord', NOW())
-                ON CONFLICT (user_id, provider)
-                DO UPDATE SET updated_at = EXCLUDED.updated_at
-            """),
-            {"user_id": state},
-        )
         await db.commit()
+
+        try:
+            await db.execute(
+                text("""
+                    INSERT INTO user_integrations (user_id, provider, updated_at)
+                    VALUES (:user_id, 'discord', NOW())
+                    ON CONFLICT (user_id, provider)
+                    DO UPDATE SET updated_at = EXCLUDED.updated_at
+                """),
+                {"user_id": state},
+            )
+            await db.commit()
+        except Exception as integration_error:
+            await db.rollback()
+            logger.warning(f"Discord integration status update failed: {integration_error}")
 
         return oauth_popup_response("discord", True)
     except Exception as e:

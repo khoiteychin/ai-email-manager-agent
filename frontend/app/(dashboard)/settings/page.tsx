@@ -52,7 +52,8 @@ function SettingsContent() {
         loadAccounts();
       } else if (event.data?.type === 'OAUTH_ERROR') {
         const provider = event.data.provider || 'account';
-        toast.error(`Failed to connect ${provider}. Please try again.`);
+        const message = event.data.message ? ` ${event.data.message}` : ' Please try again.';
+        toast.error(`Failed to connect ${provider}.${message}`);
       }
     };
     window.addEventListener('message', handleMessage);

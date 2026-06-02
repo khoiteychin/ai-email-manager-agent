@@ -87,16 +87,23 @@ async def handle_oauth_callback(code: str, user_id: str, db: AsyncSession) -> No
     if credentials.expiry:
         account.token_expiry = credentials.expiry
 
-    await db.execute(
-        text("""
-            INSERT INTO user_integrations (user_id, provider, updated_at)
-            VALUES (:user_id, 'gmail', NOW())
-            ON CONFLICT (user_id, provider)
-            DO UPDATE SET updated_at = EXCLUDED.updated_at
-        """),
-        {"user_id": user_id},
-    )
     await db.commit()
+
+    try:
+        await db.execute(
+            text("""
+                INSERT INTO user_integrations (user_id, provider, updated_at)
+                VALUES (:user_id, 'gmail', NOW())
+                ON CONFLICT (user_id, provider)
+                DO UPDATE SET updated_at = EXCLUDED.updated_at
+            """),
+            {"user_id": user_id},
+        )
+        await db.commit()
+    except Exception as integration_error:
+        await db.rollback()
+        logger.warning(f"Gmail integration status update failed: {integration_error}")
+
     logger.info(f"Gmail connected for user {user_id}: {gmail_email}")
 
 

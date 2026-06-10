@@ -40,24 +40,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Trích xuất token và lưu vào localStorage để gửi lên Backend
         const token = await firebaseUser.getIdToken();
         localStorage.setItem('access_token', token);
-        
+
         try {
           const res = await authApi.me();
           setUser({
             id: res.data.userId || res.data.id || firebaseUser.uid,
             email: res.data.email || firebaseUser.email || '',
-            name: firebaseUser.displayName || res.data.name
+            name: firebaseUser.displayName || res.data.name,
           });
         } catch {
-          // Fallback nếu Backend chưa setup xong
           setUser({
             id: firebaseUser.uid,
             email: firebaseUser.email || '',
-            name: firebaseUser.displayName || undefined
+            name: firebaseUser.displayName || undefined,
           });
+        }
+
+        // Redirect to dashboard if on a public page (login/register)
+        const publicPaths = ['/login', '/register'];
+        if (publicPaths.some((p) => window.location.pathname.startsWith(p))) {
+          router.push('/dashboard');
         }
       } else {
         setUser(null);
@@ -70,19 +74,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
+    // Only trigger Firebase sign-in — redirect is handled by onAuthStateChanged above
     await signInWithEmailAndPassword(auth, email, password);
-    router.push('/dashboard');
   };
 
   const register = async (email: string, password: string, name?: string) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    
+
     if (name) {
       await updateProfile(userCredential.user, { displayName: name });
     }
-    
-    // Firebase auth auto-logins after register
-    router.push('/dashboard');
+    // Redirect is handled by onAuthStateChanged above
   };
 
   const confirmRegistration = async (email: string, code: string, username?: string) => {

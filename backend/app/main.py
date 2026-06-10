@@ -54,8 +54,10 @@ async def add_security_headers(request, call_next):
     # Ngăn trình duyệt tự ý đoán kiểu tệp tin sai lệch (Chống MIME Sniffing)
     response.headers["X-Content-Type-Options"] = "nosniff"
     # Ẩn thông tin framework backend khỏi attacker
-    response.headers.pop("X-Powered-By", None)
-    response.headers.pop("Server", None)
+    if "X-Powered-By" in response.headers:
+        del response.headers["X-Powered-By"]
+    if "Server" in response.headers:
+        del response.headers["Server"]
     return response
 
 # ─── Routers ────────────────────────────────────────────────────

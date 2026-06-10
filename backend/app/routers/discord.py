@@ -160,8 +160,9 @@ async def save_webhook_url(
     Save the Discord webhook URL for the current user.
     Users copy this from Discord Server Settings → Integrations → Webhooks.
     """
-    # Basic validation: must be a discord.com webhook URL
-    if not body.webhookUrl.startswith("https://discord.com/api/webhooks/"):
+    # Basic validation: must be a discord.com or discordapp.com webhook URL
+    if not (body.webhookUrl.startswith("https://discord.com/api/webhooks/") or 
+            body.webhookUrl.startswith("https://discordapp.com/api/webhooks/")):
         from fastapi import HTTPException
         raise HTTPException(status_code=400, detail="Invalid Discord webhook URL. Must start with https://discord.com/api/webhooks/")
 

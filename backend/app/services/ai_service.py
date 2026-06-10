@@ -86,7 +86,7 @@ Email Context:
     )
     reply = completion.choices[0].message.content or ""
 
-    sources = [{"id": e.id, "subject": e.subject, "sender": e.sender} for e in relevant_emails]
+    sources = [{"id": str(e.id), "subject": e.subject, "sender": e.sender} for e in relevant_emails]
 
     # Save assistant response
     assistant_msg = AiChatMessage(

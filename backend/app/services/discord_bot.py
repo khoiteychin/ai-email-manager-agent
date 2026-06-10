@@ -28,11 +28,16 @@ async def on_message(message: discord.Message):
 
     # Check if the bot is mentioned
     if client.user in message.mentions:
-        # Bug #8 fix: Remove both mention formats – <@ID> and <@!ID> (nickname variant)
+        # Bug #6 fix: log each step for easy debugging
+        logger.info(f"Discord bot: mention received from {message.author} (id={message.author.id}) in channel {message.channel.id}")
+
+        # Bug #8 fix (v1): Remove both mention formats – <@ID> and <@!ID> (nickname variant)
         content = message.content
         content = content.replace(f'<@{client.user.id}>', '').strip()
         content = content.replace(f'<@!{client.user.id}>', '').strip()
-        
+
+        logger.info(f"Discord bot: message content after strip: '{content[:100]}'")
+
         if not content:
             await message.reply("Xin chào! Bạn cần giúp gì về email hôm nay?")
             return
@@ -47,17 +52,17 @@ async def on_message(message: discord.Message):
             account = result.scalar_one_or_none()
 
             if not account:
+                logger.warning(f"Discord bot: no DiscordAccount found for discord_id={discord_id_str}")
                 await message.reply("Bạn chưa liên kết tài khoản Discord với AI Email Manager. Vui lòng vào trang Settings trên web để kết nối nhé!")
                 return
 
             user_id = account.user_id
+            logger.info(f"Discord bot: matched discord_id={discord_id_str} → user_id={user_id}")
 
             # Let the user know we are thinking
             async with message.channel.typing():
                 try:
-                    # Pass the message to the AI service
-                    # We pass None for session_id to create a new session or we could map it to a channel
-                    # For simplicity, let's just create a new session each time or rely on recent history
+                    logger.info(f"Discord bot: calling ai_service.chat() for user {user_id}")
                     ai_response = await ai_service.chat(
                         user_id=user_id,
                         message=content,
@@ -65,10 +70,20 @@ async def on_message(message: discord.Message):
                         db=db
                     )
                     reply_text = ai_response.get("message", {}).get("content", "Xin lỗi, tôi không thể xử lý yêu cầu lúc này.")
+                    logger.info(f"Discord bot: AI replied {len(reply_text)} chars to user {user_id}")
+
+                    # Discord has a 2000 char limit per message
+                    if len(reply_text) > 1990:
+                        reply_text = reply_text[:1987] + "..."
+
                     await message.reply(reply_text)
                 except Exception as e:
-                    logger.error(f"Discord RAG error for user {user_id}: {e}")
-                    await message.reply("Đã xảy ra lỗi khi xử lý yêu cầu của bạn. Vui lòng thử lại sau.")
+                    # Bug #6 fix: log full traceback so we can see exactly what went wrong
+                    logger.error(f"Discord bot AI error for user {user_id}: {e}", exc_info=True)
+                    await message.reply(
+                        "⚠️ Đã xảy ra lỗi khi xử lý yêu cầu. "
+                        "Vui lòng kiểm tra logs backend hoặc thử lại sau."
+                    )
 
 
 async def start_discord_bot():

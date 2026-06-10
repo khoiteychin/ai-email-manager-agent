@@ -27,6 +27,22 @@ async def lifespan(app: FastAPI):
     from app.services.discord_bot import start_discord_bot
     import asyncio
     asyncio.create_task(start_discord_bot())
+
+    # Bug #1 fix: Auto-renew Gmail Watch every 12 hours to prevent expiry (watch lasts 7 days)
+    async def _gmail_watch_renewal_loop():
+        import asyncio
+        from app.database import AsyncSessionLocal
+        from app.services.gmail_service import renew_watch_for_all_users
+        while True:
+            await asyncio.sleep(12 * 60 * 60)  # Run every 12 hours
+            try:
+                async with AsyncSessionLocal() as db:
+                    await renew_watch_for_all_users(db)
+            except Exception as e:
+                logger.error(f"Gmail watch renewal loop error: {e}")
+
+    asyncio.create_task(_gmail_watch_renewal_loop())
+    logger.info("✅ Gmail watch renewal loop scheduled (every 12h)")
     
     yield
     # Shutdown

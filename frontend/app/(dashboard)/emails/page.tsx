@@ -14,19 +14,18 @@ import {
   ChevronRight,
   Circle,
   RefreshCw,
+  Bell,
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 
 const CATEGORIES = ['All', 'Work', 'Personal', 'Ads', 'Invoice', 'Social'];
-const PRIORITIES = ['All', 'High', 'Medium', 'Low'];
 
 // Bug #2 fix: Updated interface to match backend _email_to_dict() fields
 interface Email {
   id: string;
   subject: string;
-  // Both fromAddress (alias) and sender (canonical) available
   sender: string;
   fromAddress: string;
   bodyPreview: string;
@@ -45,10 +44,12 @@ export default function EmailsPage() {
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
-  const [priority, setPriority] = useState('All');
   const [page, setPage] = useState(1);
-  // Bug #3 fix: track last refresh time for auto-polling display
+  // Bug #4: last fetch timestamp for polling since=
+  const [lastFetchTime, setLastFetchTime] = useState<string>(new Date().toISOString());
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  // Bug #4: new email banner state
+  const [newEmailBanner, setNewEmailBanner] = useState<{ count: number; emails: Array<{ subject: string; sender: string }> } | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchEmails = useCallback(async () => {
@@ -59,34 +60,47 @@ export default function EmailsPage() {
         limit: 20,
         search: search || undefined,
         category: category !== 'All' ? category : undefined,
-        priority: priority !== 'All' ? priority : undefined,
       });
       setEmails(res.data.data);
       setMeta(res.data.meta);
+      const now = new Date().toISOString();
+      setLastFetchTime(now);
       setLastRefresh(new Date());
+      setNewEmailBanner(null); // Clear banner after reload
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [page, search, category, priority]);
+  }, [page, search, category]);
 
   useEffect(() => {
     const timer = setTimeout(fetchEmails, 300);
     return () => clearTimeout(timer);
   }, [fetchEmails]);
 
-  // Bug #3 fix: auto-refresh every 60 seconds to pick up new emails
+  // Bug #4: Lightweight polling every 30 seconds – only queries DB, no Gmail API call
   useEffect(() => {
-    pollingRef.current = setInterval(() => {
-      fetchEmails();
-    }, 60_000);
+    // Start polling after initial load
+    pollingRef.current = setInterval(async () => {
+      try {
+        const res = await emailsApi.checkNew(lastFetchTime);
+        const { count, emails: newEmails } = res.data;
+        if (count > 0) {
+          // Show banner instead of auto-reloading
+          setNewEmailBanner({ count, emails: newEmails.slice(0, 3) });
+        }
+      } catch {
+        // Polling errors are non-critical, ignore silently
+      }
+    }, 30_000); // Every 30 seconds
+
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [fetchEmails]);
+  }, [lastFetchTime]);
 
-  // Bug #3 fix: manual sync that triggers Gmail API fetch
+  // Bug #3 fix: manual sync using incremental Gmail History API
   const handleSync = async () => {
     setSyncing(true);
     try {
@@ -97,12 +111,19 @@ export default function EmailsPage() {
         await fetchEmails();
       } else {
         toast.success('Inbox is up to date');
+        setLastRefresh(new Date());
       }
     } catch {
       toast.error('Sync failed. Please try again.');
     } finally {
       setSyncing(false);
     }
+  };
+
+  // Load new emails when banner is clicked
+  const loadNewEmails = async () => {
+    setNewEmailBanner(null);
+    await fetchEmails();
   };
 
   const toggleStar = async (e: React.MouseEvent, emailId: string) => {
@@ -133,7 +154,7 @@ export default function EmailsPage() {
           </p>
         </div>
 
-        {/* Bug #3 fix: Manual Refresh button */}
+        {/* Manual Refresh button */}
         <button
           onClick={handleSync}
           disabled={syncing}
@@ -149,6 +170,42 @@ export default function EmailsPage() {
         </button>
       </div>
 
+      {/* Bug #4: New Email Banner – shown when polling detects new emails */}
+      <AnimatePresence>
+        {newEmailBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: -12, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -12, height: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            <button
+              onClick={loadNewEmails}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:brightness-110"
+              style={{
+                background: 'linear-gradient(90deg, rgba(59,130,246,0.15), rgba(99,102,241,0.15))',
+                border: '1px solid rgba(59,130,246,0.3)',
+                color: '#93c5fd',
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <Bell className="w-4 h-4 text-blue-400 animate-pulse" />
+                <span>
+                  {newEmailBanner.count} new email{newEmailBanner.count > 1 ? 's' : ''} arrived
+                  {newEmailBanner.emails.length > 0 && (
+                    <span style={{ color: '#64748b' }}>
+                      {' '}– {newEmailBanner.emails[0].subject}
+                      {newEmailBanner.count > 1 && ` +${newEmailBanner.count - 1} more`}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <span className="text-xs underline">Load now →</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Filters */}
       <div className="glass p-4 space-y-4">
         <div className="relative">
@@ -162,25 +219,22 @@ export default function EmailsPage() {
           />
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          {/* Category filter */}
-          <div className="flex items-center gap-1 flex-wrap">
-            <Filter className="w-3.5 h-3.5 mr-1" style={{ color: '#64748b' }} />
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => { setCategory(cat); setPage(1); }}
-                className="px-3 py-1 rounded-full text-xs font-medium transition-all duration-200"
-                style={{
-                  background: category === cat ? 'rgba(59,130,246,0.2)' : 'rgba(14,22,41,0.5)',
-                  border: `1px solid ${category === cat ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)'}`,
-                  color: category === cat ? '#60a5fa' : '#64748b',
-                }}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-1 flex-wrap">
+          <Filter className="w-3.5 h-3.5 mr-1" style={{ color: '#64748b' }} />
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => { setCategory(cat); setPage(1); }}
+              className="px-3 py-1 rounded-full text-xs font-medium transition-all duration-200"
+              style={{
+                background: category === cat ? 'rgba(59,130,246,0.2)' : 'rgba(14,22,41,0.5)',
+                border: `1px solid ${category === cat ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)'}`,
+                color: category === cat ? '#60a5fa' : '#64748b',
+              }}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -211,7 +265,6 @@ export default function EmailsPage() {
                     className="glass-hover p-4 flex items-start gap-3 group"
                     style={{ borderRadius: '12px' }}
                   >
-                    {/* Unread indicator */}
                     <div className="mt-1.5 flex-shrink-0">
                       <Circle
                         className="w-2 h-2"
@@ -220,7 +273,6 @@ export default function EmailsPage() {
                       />
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span
@@ -236,7 +288,6 @@ export default function EmailsPage() {
                         </span>
                       </div>
 
-                      {/* Bug #2 fix: use sender/fromAddress (both provided by backend now) */}
                       <div className="text-xs mb-2" style={{ color: '#64748b' }}>
                         From: {email.sender || email.fromAddress || 'Unknown'}
                       </div>
@@ -257,7 +308,6 @@ export default function EmailsPage() {
                       </div>
                     </div>
 
-                    {/* Star */}
                     <button
                       onClick={(e) => toggleStar(e, email.id)}
                       className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-yellow-400/10"

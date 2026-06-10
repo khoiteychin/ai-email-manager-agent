@@ -209,28 +209,95 @@ async def test_notification(
 
 
 async def send_discord_notification(user_id: str, message: str, db: AsyncSession):
-    """Send a notification via Discord webhook"""
+    """Send a notification via Discord webhook or Bot API"""
     try:
         result = await db.execute(
             select(DiscordAccount).where(DiscordAccount.user_id == user_id)
         )
         account = result.scalar_one_or_none()
+
+        # Bug #5 fix: log exactly why notification is skipped
         if not account:
+            logger.warning(f"Discord notify skipped: no DiscordAccount found for user {user_id}")
             return
 
+        if not account.webhook_url and not account.channel_id:
+            logger.warning(
+                f"Discord notify skipped for user {user_id}: "
+                f"no webhook_url AND no channel_id set. "
+                f"User must configure webhook URL in Settings."
+            )
+            return
+
+        sent = False
         if account.webhook_url:
             async with httpx.AsyncClient() as client:
-                await client.post(account.webhook_url, json={"content": message})
+                res = await client.post(account.webhook_url, json={"content": message})
+                if res.status_code in (200, 204):
+                    sent = True
+                    logger.info(f"Discord webhook notification sent for user {user_id}")
+                else:
+                    logger.error(
+                        f"Discord webhook failed for user {user_id}: "
+                        f"HTTP {res.status_code} – {res.text[:200]}"
+                    )
         elif settings.DISCORD_BOT_TOKEN and account.channel_id:
             async with httpx.AsyncClient() as client:
-                await client.post(
+                res = await client.post(
                     f"{DISCORD_API_BASE}/channels/{account.channel_id}/messages",
                     json={"content": message},
                     headers={"Authorization": f"Bot {settings.DISCORD_BOT_TOKEN}"},
                 )
+                if res.status_code in (200, 201):
+                    sent = True
+                    logger.info(f"Discord bot message sent to channel {account.channel_id} for user {user_id}")
+                else:
+                    logger.error(
+                        f"Discord bot message failed for user {user_id}: "
+                        f"HTTP {res.status_code} – {res.text[:200]}"
+                    )
+        elif not settings.DISCORD_BOT_TOKEN:
+            logger.warning(
+                f"Discord notify skipped for user {user_id}: "
+                f"DISCORD_BOT_TOKEN is not set in .env"
+            )
 
-        notification = Notification(user_id=user_id, platform="discord", content=message, status="sent")
-        db.add(notification)
-        await db.commit()
+        if sent:
+            notification = Notification(user_id=user_id, platform="discord", content=message, status="sent")
+            db.add(notification)
+            await db.commit()
     except Exception as e:
-        logger.error(f"Discord notification failed: {e}")
+        logger.error(f"Discord notification error for user {user_id}: {e}", exc_info=True)
+
+
+@router.get("/debug")
+async def debug_discord_status(
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Bug #5 fix: Debug endpoint to check all Discord notification prerequisites."""
+    result = await db.execute(
+        select(DiscordAccount).where(DiscordAccount.user_id == current_user.uid)
+    )
+    account = result.scalar_one_or_none()
+
+    return {
+        "hasAccount": account is not None,
+        "discordId": account.discord_id if account else None,
+        "username": account.username if account else None,
+        "hasWebhookUrl": bool(account.webhook_url) if account else False,
+        "hasChannelId": bool(account.channel_id) if account else False,
+        "hasBotToken": bool(settings.DISCORD_BOT_TOKEN),
+        "webhookUrlPreview": (account.webhook_url[:40] + "...") if account and account.webhook_url else None,
+        "canSendNotification": (
+            account is not None and (
+                bool(account.webhook_url) or
+                (bool(settings.DISCORD_BOT_TOKEN) and bool(account.channel_id))
+            )
+        ),
+        "recommendation": (
+            "Go to Settings → Discord → Paste your webhook URL"
+            if not (account and account.webhook_url)
+            else "Configuration looks correct"
+        ),
+    }

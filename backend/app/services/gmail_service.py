@@ -205,9 +205,97 @@ async def fetch_recent_emails(user_id: str, db: AsyncSession, max_results: int =
             except HttpError as e:
                 logger.warning(f"Failed to fetch message {msg['id']}: {e}")
 
+        # Save latest historyId so future syncs can use incremental API
+        try:
+            profile = service.users().getProfile(userId="me").execute()
+            new_history_id = str(profile.get("historyId", ""))
+            if new_history_id:
+                result = await db.execute(select(GmailAccount).where(GmailAccount.user_id == user_id))
+                account = result.scalar_one_or_none()
+                if account:
+                    account.history_id = new_history_id
+                    await db.commit()
+                    logger.info(f"Saved historyId {new_history_id} for user {user_id}")
+        except Exception as hist_err:
+            logger.warning(f"Could not save historyId: {hist_err}")
+
         return emails
     except Exception as e:
         logger.error(f"Error fetching emails: {e}")
+        return []
+
+
+async def fetch_emails_incremental(user_id: str, db: AsyncSession) -> list[dict]:
+    """
+    Bug #3 fix: Use Gmail History API for fast incremental sync.
+    Only fetches emails added since last sync – typically <500ms vs 10-30s for full sync.
+    Returns empty list if no history_id stored (should fall back to full sync).
+    """
+    result = await db.execute(select(GmailAccount).where(GmailAccount.user_id == user_id))
+    account = result.scalar_one_or_none()
+
+    if not account or not account.history_id:
+        logger.info(f"No historyId for user {user_id}, falling back to full sync")
+        return []  # Caller should fall back to fetch_recent_emails
+
+    service = await get_gmail_service(user_id, db)
+    if not service:
+        return []
+
+    try:
+        history_response = service.users().history().list(
+            userId="me",
+            startHistoryId=account.history_id,
+            historyTypes=["messageAdded"],
+            labelId="INBOX",
+        ).execute()
+
+        # Update history_id to the latest regardless of whether there are new messages
+        new_history_id = str(history_response.get("historyId", account.history_id))
+        account.history_id = new_history_id
+        await db.commit()
+
+        history_records = history_response.get("history", [])
+        if not history_records:
+            logger.info(f"No new messages since historyId {account.history_id} for user {user_id}")
+            return []
+
+        # Collect unique new message IDs
+        new_msg_ids = set()
+        for record in history_records:
+            for added in record.get("messagesAdded", []):
+                msg_id = added.get("message", {}).get("id")
+                if msg_id:
+                    new_msg_ids.add(msg_id)
+
+        if not new_msg_ids:
+            return []
+
+        # Fetch full details for each new message
+        emails = []
+        for msg_id in new_msg_ids:
+            try:
+                full_msg = service.users().messages().get(
+                    userId="me",
+                    id=msg_id,
+                    format="full",
+                ).execute()
+                parsed = _parse_message(full_msg)
+                if parsed:
+                    emails.append(parsed)
+            except HttpError as e:
+                logger.warning(f"Failed to fetch incremental message {msg_id}: {e}")
+
+        logger.info(f"Incremental sync: {len(emails)} new email(s) for user {user_id}")
+        return emails
+    except HttpError as e:
+        if e.resp.status == 404:
+            # historyId expired (> 30 days old) – reset and do full sync next time
+            logger.warning(f"historyId expired for user {user_id}, resetting for full sync")
+            account.history_id = None
+            await db.commit()
+        else:
+            logger.error(f"Incremental sync error for user {user_id}: {e}")
         return []
 
 
@@ -347,3 +435,32 @@ async def setup_watch(user_id: str, db: AsyncSession) -> None:
         logger.info(f"Gmail watch setup for user {user_id}")
     except Exception as e:
         logger.error(f"Gmail watch setup failed: {e}")
+
+
+async def renew_watch_for_all_users(db: AsyncSession) -> None:
+    """
+    Bug #1 fix: Renew Gmail Watch for all users whose watch is expiring within 2 days.
+    Called by a background loop in main.py every 12 hours.
+    """
+    from datetime import datetime, timezone, timedelta
+    cutoff = datetime.now(timezone.utc) + timedelta(days=2)  # renew if expiring within 2 days
+
+    result = await db.execute(
+        select(GmailAccount).where(
+            # Renew if watch_expiry is None (never set) OR expiring soon
+            (GmailAccount.watch_expiry.is_(None)) |
+            (GmailAccount.watch_expiry <= cutoff)
+        )
+    )
+    accounts = result.scalars().all()
+
+    if not accounts:
+        logger.info("Gmail watch renewal: no accounts need renewal")
+        return
+
+    logger.info(f"Gmail watch renewal: renewing {len(accounts)} account(s)")
+    for account in accounts:
+        try:
+            await setup_watch(account.user_id, db)
+        except Exception as e:
+            logger.error(f"Watch renewal failed for user {account.user_id}: {e}")

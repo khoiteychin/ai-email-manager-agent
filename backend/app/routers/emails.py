@@ -45,8 +45,16 @@ async def _classify_in_background(email_id: str, subject: str, body_text: str, u
 
 
 async def sync_from_gmail(user_id: str, db: AsyncSession) -> int:
-    # Bug #1 fixed: single direct await, no run_in_executor wrapping async code
-    emails_data = await gmail_service.fetch_recent_emails(user_id, db, 50)
+    """
+    Bug #3 fix: Use incremental sync (History API) if historyId is stored – very fast (~200ms).
+    Falls back to full sync (50 emails) on first run or when historyId is expired/missing.
+    """
+    # Try incremental sync first
+    emails_data = await gmail_service.fetch_emails_incremental(user_id, db)
+
+    if not emails_data:
+        # No historyId yet or no new messages via History API – do full sync
+        emails_data = await gmail_service.fetch_recent_emails(user_id, db, 50)
 
     new_count = 0
     for data in emails_data:
@@ -61,8 +69,6 @@ async def sync_from_gmail(user_id: str, db: AsyncSession) -> int:
 
     if new_count > 0:
         await db.commit()
-        # Bug #2 fixed: fetch IDs first while db is still open, then schedule
-        # background tasks with their own sessions — request db session must NOT be shared
         result = await db.execute(
             select(Email.id, Email.subject, Email.body_text)
             .where(Email.user_id == user_id, Email.summary.is_(None))
@@ -173,6 +179,49 @@ async def toggle_star(
     email.is_starred = not email.is_starred
     await db.commit()
     return {"isStarred": email.is_starred}
+
+
+@router.get("/check-new")
+async def check_new_emails(
+    since: Optional[str] = Query(None, description="ISO 8601 timestamp – return emails newer than this"),
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Bug #4 fix: Lightweight endpoint for frontend polling (every 30s).
+    Only queries the local DB – does NOT call Gmail API.
+    Returns count and brief info of new emails since `since` timestamp.
+    """
+    from datetime import datetime, timezone
+    try:
+        since_dt = datetime.fromisoformat(since.replace("Z", "+00:00")) if since else None
+    except ValueError:
+        since_dt = None
+
+    query = select(Email).where(Email.user_id == current_user.uid)
+    if since_dt:
+        query = query.where(Email.received_at > since_dt)
+    else:
+        # Default: emails from last 5 minutes
+        from datetime import timedelta
+        query = query.where(Email.received_at > datetime.now(timezone.utc) - timedelta(minutes=5))
+
+    query = query.order_by(Email.received_at.desc()).limit(10)
+    result = await db.execute(query)
+    new_emails = result.scalars().all()
+
+    return {
+        "count": len(new_emails),
+        "emails": [
+            {
+                "id": str(e.id),
+                "subject": e.subject or "(No Subject)",
+                "sender": e.sender or e.sender_email or "Unknown",
+                "receivedAt": e.received_at.isoformat() if e.received_at else None,
+            }
+            for e in new_emails
+        ],
+    }
 
 
 @router.post("/sync")

@@ -108,7 +108,7 @@ export const userApi = {
   getStats: () => api.get('/user/stats'), // Vẫn dùng N8N
 };
 
-// ─── Emails APIs ─────────────────────────────────────────────
+// ─── Emails APIs ─────────────────────────────────────────────────────────────
 export const emailsApi = {
   list: (params?: {
     page?: number;
@@ -121,8 +121,10 @@ export const emailsApi = {
   get: (id: string) => api.get(`/emails/${id}`),
   toggleStar: (id: string) => api.patch(`/emails/${id}/star`),
   markAsRead: (id: string, isRead: boolean) => api.patch(`/emails/${id}/read`, { isRead }),
-  // Bug #3 fix: manual sync trigger
+  // Bug #3 fix: manual sync trigger (now uses incremental sync internally)
   sync: () => api.post('/emails/sync'),
+  // Bug #4 fix: lightweight polling – only queries DB, no Gmail API call
+  checkNew: (since?: string) => api.get('/emails/check-new', { params: since ? { since } : {} }),
 };
 
 // ─── AI APIs ─────────────────────────────────────────────────

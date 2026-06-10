@@ -296,27 +296,26 @@ async def search_similar_emails(
 ) -> list[Email]:
     vector_str = f"[{','.join(str(x) for x in embedding)}]"
     try:
-        rows = await db.execute(
-            text("""SELECT e.* FROM emails e
-                   JOIN email_embeddings ee ON e.id = ee.email_id
-                   WHERE e.user_id = :user_id
-                   ORDER BY ee.embedding <=> :embedding::vector
-                   LIMIT :limit"""),
-            {"user_id": user_id, "embedding": vector_str, "limit": limit},
-        )
-        # Bug #7 fixed: preserve the cosine similarity ordering by mapping results back by id
-        email_ids = [row[0] for row in rows.fetchall()]
-        if not email_ids:
-            raise Exception("No embeddings")
-        result = await db.execute(
-            select(Email).where(Email.id.in_(email_ids), Email.user_id == user_id)
-        )
-        emails_by_id = {e.id: e for e in result.scalars().all()}
-        # Return in original cosine similarity order (most relevant first)
-        return [emails_by_id[eid] for eid in email_ids if eid in emails_by_id]
+        async with db.begin_nested():
+            rows = await db.execute(
+                text("""SELECT e.* FROM emails e
+                       JOIN email_embeddings ee ON e.id = ee.email_id
+                       WHERE e.user_id = :user_id
+                       ORDER BY ee.embedding <=> :embedding::vector
+                       LIMIT :limit"""),
+                {"user_id": user_id, "embedding": vector_str, "limit": limit},
+            )
+            # Bug #7 fixed: preserve the cosine similarity ordering by mapping results back by id
+            email_ids = [row[0] for row in rows.fetchall()]
+            if not email_ids:
+                raise Exception("No embeddings")
+            result = await db.execute(
+                select(Email).where(Email.id.in_(email_ids), Email.user_id == user_id)
+            )
+            emails_by_id = {e.id: e for e in result.scalars().all()}
+            # Return in original cosine similarity order (most relevant first)
+            return [emails_by_id[eid] for eid in email_ids if eid in emails_by_id]
     except Exception:
-        # Rollback the failed transaction before running fallback query
-        await db.rollback()
         # Fallback to recent emails
         result = await db.execute(
             select(Email)

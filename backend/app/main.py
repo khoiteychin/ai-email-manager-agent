@@ -22,6 +22,12 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 AI Email Manager Backend starting...")
     init_firebase()
     logger.info("✅ Firebase Admin initialized")
+    
+    # Start Discord Bot in the background
+    from app.services.discord_bot import start_discord_bot
+    import asyncio
+    asyncio.create_task(start_discord_bot())
+    
     yield
     # Shutdown
     logger.info("🛑 Backend shutting down...")

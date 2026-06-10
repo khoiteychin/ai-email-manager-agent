@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import String, Boolean, DateTime, Text, ForeignKey, func, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSONB
 from app.database import Base
 
 
@@ -120,7 +121,7 @@ class AiChatMessage(Base):
     session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("ai_chat_sessions.id", ondelete="CASCADE"))
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    sources: Mapped[str | None] = mapped_column(Text)  # JSON string
+    sources: Mapped[list | dict | None] = mapped_column(JSONB)  # JSONB array
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     session: Mapped["AiChatSession"] = relationship("AiChatSession", back_populates="messages")

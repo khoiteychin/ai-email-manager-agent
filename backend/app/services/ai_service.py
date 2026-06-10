@@ -93,7 +93,7 @@ Email Context:
         session_id=session.id,
         role="assistant",
         content=reply,
-        sources=json.dumps(sources),
+        sources=sources,
     )
     db.add(assistant_msg)
     await db.commit()
@@ -209,7 +209,7 @@ async def get_session_history(user_id: str, session_id: str, db: AsyncSession) -
                 "id": m.id,
                 "role": m.role,
                 "content": m.content,
-                "sources": json.loads(m.sources) if m.sources else [],
+                "sources": m.sources if m.sources else [],
                 "createdAt": m.created_at.isoformat() if m.created_at else None,
             }
             for m in messages

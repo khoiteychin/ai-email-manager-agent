@@ -46,19 +46,16 @@ app.add_middleware(
 )
 
 # ─── Security Headers Middleware ────────────────────────────────
+# NOTE: Main security headers (CSP, HSTS, X-Frame-Options) are handled by Nginx.
+# This middleware only adds API-specific headers that Nginx does not set.
 @app.middleware("http")
 async def add_security_headers(request, call_next):
     response = await call_next(request)
-    # Ngăn trang web bị nhúng vào iframe của kẻ xấu (Chống Clickjacking)
-    response.headers["X-Frame-Options"] = "DENY"
     # Ngăn trình duyệt tự ý đoán kiểu tệp tin sai lệch (Chống MIME Sniffing)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    # Kích hoạt bộ lọc XSS tích hợp của trình duyệt
-    response.headers["X-XSS-Protection"] = "1; mode=block"
-    # Chỉ cho phép tải tài nguyên từ các nguồn an toàn (Content Security Policy)
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;"
-    # Ép buộc sử dụng kết nối HTTPS bảo mật
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # Ẩn thông tin framework backend khỏi attacker
+    response.headers.pop("X-Powered-By", None)
+    response.headers.pop("Server", None)
     return response
 
 # ─── Routers ────────────────────────────────────────────────────

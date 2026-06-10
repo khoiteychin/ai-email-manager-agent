@@ -315,6 +315,8 @@ async def search_similar_emails(
         # Return in original cosine similarity order (most relevant first)
         return [emails_by_id[eid] for eid in email_ids if eid in emails_by_id]
     except Exception:
+        # Rollback the failed transaction before running fallback query
+        await db.rollback()
         # Fallback to recent emails
         result = await db.execute(
             select(Email)

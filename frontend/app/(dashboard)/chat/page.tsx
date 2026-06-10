@@ -212,7 +212,7 @@ export default function ChatPage() {
           <div>
             <div className="text-sm font-semibold text-white">AI Email Assistant</div>
             <div className="text-xs" style={{ color: '#64748b' }}>
-              Powered by your n8n workflow
+              Powered by your AI Email Assistant
             </div>
           </div>
         </div>
@@ -272,9 +272,8 @@ export default function ChatPage() {
                 key={message.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`flex items-start gap-3 ${
-                  message.role === 'user' ? 'flex-row-reverse' : ''
-                }`}
+                className={`flex items-start gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''
+                  }`}
               >
                 {/* Avatar */}
                 <div
@@ -301,11 +300,10 @@ export default function ChatPage() {
                       message.role === 'user'
                         ? 'rgba(59,130,246,0.15)'
                         : 'rgba(14,22,41,0.8)',
-                    border: `1px solid ${
-                      message.role === 'user'
+                    border: `1px solid ${message.role === 'user'
                         ? 'rgba(59,130,246,0.3)'
                         : 'rgba(59,130,246,0.1)'
-                    }`,
+                      }`,
                     color: '#e2e8f0',
                     borderRadius:
                       message.role === 'user'

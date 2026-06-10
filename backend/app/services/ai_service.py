@@ -25,6 +25,9 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
     openai = get_openai_client()
 
     # Get or create session
+    if session_id in ["undefined", "null", ""]:
+        session_id = None
+        
     session = None
     if session_id:
         result = await db.execute(
@@ -188,6 +191,9 @@ async def get_sessions(user_id: str, db: AsyncSession) -> list:
 
 
 async def get_session_history(user_id: str, session_id: str, db: AsyncSession) -> dict:
+    if session_id in ["undefined", "null", ""]:
+        return {"session": None, "messages": []}
+
     result = await db.execute(
         select(AiChatSession).where(AiChatSession.id == session_id, AiChatSession.user_id == user_id)
     )

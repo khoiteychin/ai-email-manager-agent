@@ -115,7 +115,7 @@ export default function ChatPage() {
       const assistantMessage: Message = {
         id: uuidv4(),
         role: 'assistant',
-        content: res.data.message,
+        content: res.data.message.content,
         createdAt: new Date(),
       };
       setMessages((prev) => [...prev, assistantMessage]);

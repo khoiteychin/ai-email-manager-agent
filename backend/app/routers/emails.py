@@ -24,11 +24,22 @@ async def ensure_user(uid: str, email: str, db: AsyncSession):
         await db.commit()
 
 
-async def _classify_in_background(email_id: str, subject: str, body_text: str):
+async def _classify_in_background(email_id: str, subject: str, body_text: str, user_id: str):
     """Run AI classification with its own independent DB session."""
     async with AsyncSessionLocal() as db:
         try:
-            await ai_service.classify_and_summarize(email_id, subject, body_text, db)
+            result = await ai_service.classify_and_summarize(email_id, subject, body_text, db)
+            
+            # Send Discord notification
+            if result:
+                from app.routers.discord import send_discord_notification
+                priority = result.get("priority", "medium").upper()
+                category = result.get("category", "other").capitalize()
+                summary = result.get("summary", "No summary available.")
+                
+                msg = f"📩 **Mới nhận Email: {subject}**\n**Độ ưu tiên:** {priority}\n**Phân loại:** {category}\n**Tóm tắt:** {summary}"
+                await send_discord_notification(user_id, msg, db)
+                
         except Exception as e:
             logger.error(f"Background classify failed for {email_id}: {e}")
 
@@ -60,7 +71,7 @@ async def sync_from_gmail(user_id: str, db: AsyncSession) -> int:
         emails_to_classify = result.fetchall()
         for row in emails_to_classify:
             asyncio.create_task(
-                _classify_in_background(row.id, row.subject or "", row.body_text or "")
+                _classify_in_background(row.id, row.subject or "", row.body_text or "", user_id)
             )
 
     return new_count

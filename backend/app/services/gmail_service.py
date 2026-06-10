@@ -79,15 +79,11 @@ async def handle_oauth_callback(code: str, state: str, db: AsyncSession) -> None
     user_info = service.userinfo().get().execute()
     gmail_email = user_info.get("email", "")
     google_id = user_info.get("id", "")
+    user_name = user_info.get("name", "")
 
-    # Upsert User
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        user = User(id=user_id, email=gmail_email, name=user_info.get("name", ""))
-        db.add(user)
-    else:
-        user.email = user.email or gmail_email
+    # Ensure User exists before creating GmailAccount to prevent foreign key errors
+    from app.dependencies import ensure_user_exists
+    await ensure_user_exists(db, user_id, email=gmail_email, name=user_name)
 
     # Upsert GmailAccount
     result = await db.execute(select(GmailAccount).where(GmailAccount.user_id == user_id))

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from app.database import get_db
-from app.dependencies import get_current_user, AuthUser
+from app.dependencies import get_current_user, AuthUser, ensure_user_exists
 from app.models import TelegramAccount, Notification
 from app.config import settings
 
@@ -61,6 +61,8 @@ async def connect(
     db: AsyncSession = Depends(get_db),
 ):
     """Direct connect (for manual / programmatic use)."""
+    await ensure_user_exists(db, current_user.uid, current_user.email)
+
     result = await db.execute(
         select(TelegramAccount).where(TelegramAccount.user_id == current_user.uid)
     )
@@ -138,6 +140,8 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             else:
                 user_id, _ = entry
                 del _connect_tokens[code]
+
+                await ensure_user_exists(db, user_id)
 
                 # Link telegram account to user
                 result = await db.execute(

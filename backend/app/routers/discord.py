@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from app.database import get_db
-from app.dependencies import get_current_user, AuthUser
+from app.dependencies import get_current_user, AuthUser, ensure_user_exists
 from app.models import DiscordAccount, Notification
 from app.config import settings
 
@@ -66,6 +66,8 @@ async def connect(current_user: AuthUser = Depends(get_current_user)):
 async def callback(code: str, state: str, db: AsyncSession = Depends(get_db)):
     """Handle Discord OAuth callback"""
     try:
+        await ensure_user_exists(db, uid=state)
+
         async with httpx.AsyncClient() as client:
             token_res = await client.post(
                 f"{DISCORD_API_BASE}/oauth2/token",
@@ -169,6 +171,8 @@ async def save_webhook_url(
         if res.status_code not in (200, 204):
             from fastapi import HTTPException
             raise HTTPException(status_code=400, detail=f"Webhook test failed: {res.text[:200]}")
+
+    await ensure_user_exists(db, current_user.uid, current_user.email)
 
     result = await db.execute(
         select(DiscordAccount).where(DiscordAccount.user_id == current_user.uid)

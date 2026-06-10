@@ -37,3 +37,19 @@ async def get_current_user(
         )
 
     return AuthUser(uid=user_data["uid"], email=user_data["email"])
+
+
+async def ensure_user_exists(db, uid: str, email: str = "", name: str = None):
+    """Ensure a user exists in the database, creating a placeholder if necessary."""
+    from sqlalchemy import select
+    from app.models import User
+    
+    user_obj = await db.scalar(select(User).where(User.id == uid))
+    if not user_obj:
+        fallback_email = email or f"{uid}@placeholder.com"
+        user_obj = User(id=uid, email=fallback_email, name=name)
+        db.add(user_obj)
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()

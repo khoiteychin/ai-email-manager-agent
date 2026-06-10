@@ -3,14 +3,17 @@ from sqlalchemy.orm import DeclarativeBase
 from app.config import settings
 import ssl
 
-# SSL context for Supabase
-ssl_context = ssl.create_default_context()
-ssl_context.check_hostname = False
-ssl_context.verify_mode = ssl.CERT_NONE
+# SSL context for Supabase (only if using cloud database)
+connect_args = {}
+if "supabase" in settings.DATABASE_URL:
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    connect_args["ssl"] = ssl_context
 
 engine = create_async_engine(
     settings.DATABASE_URL,
-    connect_args={"ssl": ssl_context},
+    connect_args=connect_args,
     pool_size=5,
     max_overflow=10,
     pool_pre_ping=True,

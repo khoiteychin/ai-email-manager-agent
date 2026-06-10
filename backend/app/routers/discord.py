@@ -124,6 +124,65 @@ class TestNotificationRequest(BaseModel):
     message: Optional[str] = "Test notification from AI Email Manager 🚀"
 
 
+class WebhookUrlRequest(BaseModel):
+    webhookUrl: str
+
+
+@router.get("/status")
+async def get_status(
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return current Discord connection status for the user."""
+    result = await db.execute(
+        select(DiscordAccount).where(DiscordAccount.user_id == current_user.uid)
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        return {"connected": False, "hasWebhook": False, "username": None}
+    return {
+        "connected": bool(account.discord_id),
+        "hasWebhook": bool(account.webhook_url),
+        "username": account.username,
+        "channelId": account.channel_id,
+    }
+
+
+@router.post("/webhook-url")
+async def save_webhook_url(
+    body: WebhookUrlRequest,
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Save the Discord webhook URL for the current user.
+    Users copy this from Discord Server Settings → Integrations → Webhooks.
+    """
+    # Basic validation: must be a discord.com webhook URL
+    if not body.webhookUrl.startswith("https://discord.com/api/webhooks/"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Invalid Discord webhook URL. Must start with https://discord.com/api/webhooks/")
+
+    # Test the webhook before saving
+    async with httpx.AsyncClient() as client:
+        res = await client.post(body.webhookUrl, json={"content": "🔗 Webhook connected to AI Email Manager!"})
+        if res.status_code not in (200, 204):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=400, detail=f"Webhook test failed: {res.text[:200]}")
+
+    result = await db.execute(
+        select(DiscordAccount).where(DiscordAccount.user_id == current_user.uid)
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        account = DiscordAccount(user_id=current_user.uid)
+        db.add(account)
+
+    account.webhook_url = body.webhookUrl
+    await db.commit()
+    return {"success": True, "message": "Discord webhook URL saved and verified"}
+
+
 @router.post("/test")
 async def test_notification(
     body: TestNotificationRequest,
@@ -135,7 +194,7 @@ async def test_notification(
     )
     account = result.scalar_one_or_none()
     if not account or not account.webhook_url:
-        return {"success": False, "error": "Discord not connected or no webhook configured"}
+        return {"success": False, "error": "Discord not connected or no webhook configured. Please add your webhook URL in Settings."}
 
     async with httpx.AsyncClient() as client:
         res = await client.post(account.webhook_url, json={"content": body.message})

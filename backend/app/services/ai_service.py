@@ -304,14 +304,16 @@ async def search_similar_emails(
                    LIMIT :limit"""),
             {"user_id": user_id, "embedding": vector_str, "limit": limit},
         )
-        # Map raw rows to Email-like objects
+        # Bug #7 fixed: preserve the cosine similarity ordering by mapping results back by id
         email_ids = [row[0] for row in rows.fetchall()]
         if not email_ids:
             raise Exception("No embeddings")
         result = await db.execute(
             select(Email).where(Email.id.in_(email_ids), Email.user_id == user_id)
         )
-        return list(result.scalars().all())
+        emails_by_id = {e.id: e for e in result.scalars().all()}
+        # Return in original cosine similarity order (most relevant first)
+        return [emails_by_id[eid] for eid in email_ids if eid in emails_by_id]
     except Exception:
         # Fallback to recent emails
         result = await db.execute(
@@ -321,3 +323,4 @@ async def search_similar_emails(
             .limit(limit)
         )
         return list(result.scalars().all())
+

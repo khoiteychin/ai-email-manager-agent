@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, func, text
 from sqlalchemy.dialects.postgresql import insert
-from app.database import get_db
+from app.database import get_db, AsyncSessionLocal
 from app.dependencies import get_current_user, AuthUser
 from app.models import Email, User
 import app.services.gmail_service as gmail_service
@@ -24,13 +24,17 @@ async def ensure_user(uid: str, email: str, db: AsyncSession):
         await db.commit()
 
 
+async def _classify_in_background(email_id: str, subject: str, body_text: str):
+    """Run AI classification with its own independent DB session."""
+    async with AsyncSessionLocal() as db:
+        try:
+            await ai_service.classify_and_summarize(email_id, subject, body_text, db)
+        except Exception as e:
+            logger.error(f"Background classify failed for {email_id}: {e}")
+
+
 async def sync_from_gmail(user_id: str, db: AsyncSession) -> int:
-    emails_data = await asyncio.get_event_loop().run_in_executor(
-        None, lambda: asyncio.new_event_loop().run_until_complete(
-            gmail_service.fetch_recent_emails(user_id, db, 50)
-        )
-    )
-    # Use the current db session instead
+    # Bug #1 fixed: single direct await, no run_in_executor wrapping async code
     emails_data = await gmail_service.fetch_recent_emails(user_id, db, 50)
 
     new_count = 0
@@ -46,16 +50,17 @@ async def sync_from_gmail(user_id: str, db: AsyncSession) -> int:
 
     if new_count > 0:
         await db.commit()
-        # Background classify new emails
+        # Bug #2 fixed: fetch IDs first while db is still open, then schedule
+        # background tasks with their own sessions — request db session must NOT be shared
         result = await db.execute(
-            select(Email)
+            select(Email.id, Email.subject, Email.body_text)
             .where(Email.user_id == user_id, Email.summary.is_(None))
             .limit(10)
         )
-        new_emails = result.scalars().all()
-        for em in new_emails:
+        emails_to_classify = result.fetchall()
+        for row in emails_to_classify:
             asyncio.create_task(
-                ai_service.classify_and_summarize(em.id, em.subject or "", em.body_text or "", db)
+                _classify_in_background(row.id, row.subject or "", row.body_text or "")
             )
 
     return new_count

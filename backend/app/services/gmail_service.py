@@ -38,22 +38,39 @@ def get_oauth_flow() -> Flow:
         scopes=SCOPES,
         redirect_uri=settings.GOOGLE_REDIRECT_URI,
     )
+    # Disable PKCE (code_verifier) to avoid state mismatch when creating new flow in callback
+    flow.code_verifier = None
     return flow
 
 
 def get_auth_url(user_id: str) -> str:
+    import secrets
     flow = get_oauth_flow()
+    
+    # Generate PKCE verifier and store it on flow before generating auth URL
+    verifier = secrets.token_urlsafe(64)
+    flow.code_verifier = verifier
+    
     auth_url, _ = flow.authorization_url(
         access_type="offline",
         prompt="consent",
-        state=user_id,
+        # Pass both user_id and verifier separated by a colon in the state param
+        state=f"{user_id}:{verifier}",
         include_granted_scopes="true",
     )
     return auth_url
 
 
-async def handle_oauth_callback(code: str, user_id: str, db: AsyncSession) -> None:
+async def handle_oauth_callback(code: str, state: str, db: AsyncSession) -> None:
+    # Unpack user_id and code_verifier from the state parameter
+    parts = state.split(":", 1)
+    user_id = parts[0]
+    code_verifier = parts[1] if len(parts) > 1 else None
+
     flow = get_oauth_flow()
+    if code_verifier:
+        flow.code_verifier = code_verifier
+
     flow.fetch_token(code=code)
     credentials = flow.credentials
 
@@ -122,9 +139,35 @@ async def get_gmail_service(user_id: str, db: AsyncSession):
         client_secret=settings.GOOGLE_CLIENT_SECRET,
     )
 
+    # Bug #6 fixed: proactively refresh if token is expired or expiring within 5 minutes
+    from datetime import datetime, timezone, timedelta
+    from google.auth.transport.requests import Request as GoogleRequest
+    needs_refresh = (
+        not creds.token
+        or (
+            account.token_expiry is not None
+            and account.token_expiry.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc) + timedelta(minutes=5)
+        )
+    )
+    if needs_refresh and creds.refresh_token:
+        try:
+            import asyncio
+            await asyncio.get_event_loop().run_in_executor(
+                None, lambda: creds.refresh(GoogleRequest())
+            )
+            # Persist refreshed token immediately
+            account.access_token = creds.token
+            if creds.expiry:
+                account.token_expiry = creds.expiry
+            await db.commit()
+            logger.info(f"Gmail token refreshed for user {user_id}")
+        except Exception as e:
+            logger.error(f"Gmail token refresh failed for user {user_id}: {e}")
+            return None
+
     service = build("gmail", "v1", credentials=creds)
 
-    # Update stored token if refreshed
+    # Also save if token changed due to implicit refresh during build
     if creds.token != account.access_token:
         account.access_token = creds.token
         if creds.expiry:
@@ -132,6 +175,7 @@ async def get_gmail_service(user_id: str, db: AsyncSession):
         await db.commit()
 
     return service
+
 
 
 async def fetch_recent_emails(user_id: str, db: AsyncSession, max_results: int = 50) -> list[dict]:

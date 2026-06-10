@@ -150,4 +150,17 @@ export const connectApi = {
   },
 };
 
+// ─── Discord APIs ─────────────────────────────────────────────
+export const discordApi = {
+  getStatus: () => api.get('/discord/status'),
+  saveWebhookUrl: (webhookUrl: string) => api.post('/discord/webhook-url', { webhookUrl }),
+  testNotification: (message?: string) => api.post('/discord/test', { message }),
+};
+
+// ─── Telegram APIs ────────────────────────────────────────────
+export const telegramApi = {
+  getToken: () => api.get('/telegram/token'),
+  testNotification: (message?: string) => api.post('/telegram/test', { message }),
+};
+
 export default api;

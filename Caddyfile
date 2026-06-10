@@ -1,0 +1,9 @@
+# Caddyfile for AI Email Manager SaaS Localhost Hosting (IPv4 Optimized)
+
+emailkhanh.freeddns.org {
+    reverse_proxy 127.0.0.1:3000
+}
+
+api.emailkhanh.freeddns.org {
+    reverse_proxy 127.0.0.1:3001
+}

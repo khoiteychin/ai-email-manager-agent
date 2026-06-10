@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { motion } from 'framer-motion';
-import { connectApi, userApi } from '@/lib/api';
-import { Card, Button } from '@/components/ui';
+import { motion, AnimatePresence } from 'framer-motion';
+import { connectApi, discordApi } from '@/lib/api';
+import { Card } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import {
   Mail,
@@ -15,26 +15,241 @@ import {
   User,
   Shield,
   Bell,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Send,
+  Link2,
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 interface ConnectedAccount {
   provider: string;
-  scope: string;
   metadata: any;
   updatedAt: string;
 }
 
+// ─── Discord Panel ────────────────────────────────────────────────────────────
+function DiscordPanel({
+  account,
+  onConnect,
+  onDisconnect,
+  disconnecting,
+}: {
+  account: ConnectedAccount | undefined;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  disconnecting: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [hasWebhook, setHasWebhook] = useState(false);
+
+  // Check webhook status on mount
+  useEffect(() => {
+    if (account) {
+      discordApi.getStatus().then((res) => {
+        setHasWebhook(res.data.hasWebhook);
+      }).catch(() => {});
+    }
+  }, [account]);
+
+  const handleSaveWebhook = async () => {
+    if (!webhookUrl.trim()) return;
+    setSaving(true);
+    try {
+      await discordApi.saveWebhookUrl(webhookUrl.trim());
+      setHasWebhook(true);
+      setWebhookUrl('');
+      setExpanded(false);
+      toast.success('✅ Discord webhook URL saved & verified!');
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || 'Failed to save webhook URL';
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    try {
+      const res = await discordApi.testNotification();
+      if (res.data.success) {
+        toast.success('📨 Test notification sent to Discord!');
+      } else {
+        toast.error(res.data.error || 'Failed to send');
+      }
+    } catch {
+      toast.error('Failed to send test notification');
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const isConnected = !!account;
+
+  return (
+    <div
+      className="rounded-xl overflow-hidden"
+      style={{ background: 'rgba(14,22,41,0.6)', border: '1px solid rgba(88,101,242,0.15)' }}
+    >
+      {/* Main row */}
+      <div className="flex items-center justify-between p-4">
+        <div className="flex items-center gap-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: isConnected ? 'rgba(16,185,129,0.15)' : 'rgba(88,101,242,0.15)' }}
+          >
+            <MessageSquare
+              className="w-5 h-5"
+              style={{ color: isConnected ? '#10b981' : '#5865f2' }}
+            />
+          </div>
+          <div>
+            <div className="text-sm font-medium text-white flex items-center gap-2">
+              Discord
+              {isConnected && hasWebhook && (
+                <span className="text-xs px-1.5 py-0.5 rounded-md font-medium" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                  Webhook ✓
+                </span>
+              )}
+              {isConnected && !hasWebhook && (
+                <span className="text-xs px-1.5 py-0.5 rounded-md font-medium" style={{ background: 'rgba(234,179,8,0.15)', color: '#eab308' }}>
+                  Needs webhook
+                </span>
+              )}
+            </div>
+            <div className="text-xs mt-0.5" style={{ color: '#64748b' }}>
+              {isConnected
+                ? 'Receive email notifications via Discord'
+                : 'Not connected — Receive notifications & chat with AI'}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {isConnected ? (
+            <>
+              <CheckCircle2 className="w-4 h-4 text-green-400" />
+              <button
+                onClick={() => setExpanded((v) => !v)}
+                className="p-1.5 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-white/5"
+                title="Configure"
+              >
+                {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              <button
+                onClick={onDisconnect}
+                disabled={disconnecting}
+                className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                title="Disconnect"
+              >
+                <Trash2 className="w-4 h-4 text-red-400" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={onConnect}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Connect
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Expandable config */}
+      <AnimatePresence>
+        {isConnected && expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 space-y-4 border-t" style={{ borderColor: 'rgba(88,101,242,0.1)' }}>
+              <div className="pt-4">
+                {/* Webhook URL input */}
+                <div
+                  className="rounded-xl p-4 space-y-3"
+                  style={{ background: 'rgba(88,101,242,0.08)', border: '1px solid rgba(88,101,242,0.15)' }}
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#eab308' }} />
+                    <div className="text-xs" style={{ color: '#94a3b8' }}>
+                      <p className="font-medium text-yellow-400 mb-1">Discord Webhook URL required</p>
+                      <p>Go to your Discord server → <strong>Settings → Integrations → Webhooks</strong>, create a webhook, then paste the URL below.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                      placeholder="https://discord.com/api/webhooks/..."
+                      className="flex-1 px-3 py-2 rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:ring-1 focus:ring-indigo-500"
+                      style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(88,101,242,0.3)' }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSaveWebhook()}
+                    />
+                    <button
+                      onClick={handleSaveWebhook}
+                      disabled={saving || !webhookUrl.trim()}
+                      className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
+                      style={{ background: 'rgba(88,101,242,0.8)', color: 'white' }}
+                    >
+                      {saving ? (
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Link2 className="w-3.5 h-3.5" />
+                      )}
+                      Save
+                    </button>
+                  </div>
+                </div>
+
+                {/* Test notification */}
+                {hasWebhook && (
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      onClick={handleTest}
+                      disabled={testing}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)' }}
+                    >
+                      {testing ? (
+                        <span className="w-3.5 h-3.5 border-2 border-emerald-300/30 border-t-emerald-300 rounded-full animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5" />
+                      )}
+                      Send test notification
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Main Settings page ───────────────────────────────────────────────────────
 function SettingsContent() {
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
   useEffect(() => {
-    // Nếu trang này được mở trong popup sau khi OAuth thành công
     if (typeof window !== 'undefined' && window.opener && window.name === 'oauth_popup') {
       const connected = searchParams.get('connected');
       if (connected) {
@@ -44,7 +259,6 @@ function SettingsContent() {
       }
     }
 
-    // Lắng nghe message từ popup trả về cho cửa sổ chính
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'OAUTH_SUCCESS') {
         const provider = event.data.provider || 'Account';
@@ -58,7 +272,6 @@ function SettingsContent() {
     };
     window.addEventListener('message', handleMessage);
 
-    // Xử lý fallback nếu load trực tiếp trên tab hiện tại
     const connected = searchParams.get('connected');
     const error = searchParams.get('error');
     if (connected && (!window.opener || window.name !== 'oauth_popup')) {
@@ -73,9 +286,7 @@ function SettingsContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (user?.id) {
-      loadAccounts();
-    }
+    if (user?.id) loadAccounts();
   }, [user]);
 
   const loadAccounts = async () => {
@@ -113,7 +324,7 @@ function SettingsContent() {
     try {
       await connectApi.disconnectProvider(provider);
       setAccounts((prev) => prev.filter((a) => a.provider !== provider));
-      toast.success(`${provider} disconnected`);
+      toast.success(`${provider.charAt(0).toUpperCase() + provider.slice(1)} disconnected`);
     } catch {
       toast.error('Failed to disconnect');
     } finally {
@@ -123,6 +334,7 @@ function SettingsContent() {
 
   const gmailAccount = accounts.find((a) => a.provider === 'gmail');
   const discordAccount = accounts.find((a) => a.provider === 'discord');
+
 
   return (
     <div className="p-8 max-w-3xl mx-auto space-y-8">
@@ -164,11 +376,11 @@ function SettingsContent() {
             Connected Accounts
           </h2>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Gmail */}
             <div
               className="flex items-center justify-between p-4 rounded-xl"
-              style={{ background: 'rgba(14,22,41,0.6)', border: '1px solid rgba(59,130,246,0.1)' }}
+              style={{ background: 'rgba(14,22,41,0.6)', border: '1px solid rgba(59,130,246,0.15)' }}
             >
               <div className="flex items-center gap-3">
                 <div
@@ -182,7 +394,7 @@ function SettingsContent() {
                 </div>
                 <div>
                   <div className="text-sm font-medium text-white">Gmail</div>
-                  <div className="text-sm" style={{ color: '#64748b' }}>
+                  <div className="text-xs mt-0.5" style={{ color: '#64748b' }}>
                     {gmailAccount
                       ? `${gmailAccount.metadata?.email || user?.email || 'Connected'} — Read, send & manage emails`
                       : 'Not connected — Read, send & manage emails'}
@@ -192,7 +404,7 @@ function SettingsContent() {
               <div className="flex items-center gap-2">
                 {gmailAccount ? (
                   <>
-                    <CheckCircle2 className="w-5 h-5 text-green-400" />
+                    <CheckCircle2 className="w-4 h-4 text-green-400" />
                     <button
                       onClick={() => disconnect('gmail')}
                       disabled={disconnecting === 'gmail'}
@@ -209,61 +421,21 @@ function SettingsContent() {
                     className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
-                    Connect Gmail
+                    Connect
                   </button>
                 )}
               </div>
             </div>
 
             {/* Discord */}
-            <div
-              className="flex items-center justify-between p-4 rounded-xl"
-              style={{ background: 'rgba(14,22,41,0.6)', border: '1px solid rgba(59,130,246,0.1)' }}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{ background: discordAccount ? 'rgba(16,185,129,0.15)' : 'rgba(88,101,242,0.15)' }}
-                >
-                  <MessageSquare
-                    className="w-5 h-5"
-                    style={{ color: discordAccount ? '#10b981' : '#5865f2' }}
-                  />
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-white">Discord</div>
-                  <div className="text-sm" style={{ color: '#64748b' }}>
-                    {discordAccount
-                      ? `${(discordAccount.metadata as any)?.username || user?.name || 'Connected'} — Receive notifications & chat with AI`
-                      : 'Not connected — Receive notifications & chat with AI'}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {discordAccount ? (
-                  <>
-                    <CheckCircle2 className="w-5 h-5 text-green-400" />
-                    <button
-                      onClick={() => disconnect('discord')}
-                      disabled={disconnecting === 'discord'}
-                      className="p-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
-                      title="Disconnect"
-                    >
-                      <Trash2 className="w-4 h-4 text-red-400" />
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => handleConnect('discord')}
-                    disabled={!user?.id}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    Connect Discord
-                  </button>
-                )}
-              </div>
-            </div>
+            <DiscordPanel
+              account={discordAccount}
+              onConnect={() => handleConnect('discord')}
+              onDisconnect={() => disconnect('discord')}
+              disconnecting={disconnecting === 'discord'}
+            />
+
+
           </div>
         </Card>
       </motion.div>
@@ -277,10 +449,10 @@ function SettingsContent() {
           </h2>
           <div className="space-y-3">
             {[
-              { label: 'Password hashing', value: 'bcrypt (rounds: 12)', ok: true },
-              { label: 'Token storage', value: 'AES-256-CBC encrypted at rest', ok: true },
-              { label: 'Auth tokens', value: 'httpOnly cookies (XSS-safe)', ok: true },
-              { label: 'Rate limiting', value: 'Active (10 req/10s auth, 100/min API)', ok: true },
+              { label: 'Authentication', value: 'Firebase JWT (signed & verified)', ok: true },
+              { label: 'Token storage', value: 'Encrypted at rest (AES-256)', ok: true },
+              { label: 'XSS Protection', value: 'CSP + X-XSS-Protection headers', ok: true },
+              { label: 'HTTPS', value: 'HSTS enforced (Let\'s Encrypt SSL)', ok: true },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between text-sm">
                 <span style={{ color: '#94a3b8' }}>{item.label}</span>

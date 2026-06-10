@@ -1,12 +1,17 @@
 import logging
 import json
+import base64
+import asyncio
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import get_db
+from sqlalchemy import select
+from app.database import get_db, AsyncSessionLocal
 from app.dependencies import get_current_user, AuthUser
 from app.config import settings
+from app.models import GmailAccount, Email
 import app.services.gmail_service as gmail_service
+import app.services.ai_service as ai_service
 
 router = APIRouter(prefix="/gmail", tags=["Gmail"])
 logger = logging.getLogger(__name__)
@@ -57,12 +62,47 @@ async def callback(
 ):
     """Handle Google OAuth callback, store tokens, setup push notifications"""
     try:
+        user_id = state.split(":", 1)[0]
         await gmail_service.handle_oauth_callback(code, state, db)
-        await gmail_service.setup_watch(state, db)
+        await gmail_service.setup_watch(user_id, db)
         return oauth_popup_response("gmail", True)
     except Exception as e:
         logger.error(f"Gmail callback error: {e}")
         return oauth_popup_response("gmail", False, str(e)[:100])
+
+
+async def _sync_user_emails_background(user_id: str):
+    """Sync emails and run AI classification for a user using a fresh DB session."""
+    async with AsyncSessionLocal() as db:
+        try:
+            emails_data = await gmail_service.fetch_recent_emails(user_id, db, 10)
+            new_ids = []
+            for data in emails_data:
+                result = await db.execute(
+                    select(Email).where(Email.user_id == user_id, Email.gmail_id == data["gmail_id"])
+                )
+                if not result.scalar_one_or_none():
+                    email = Email(user_id=user_id, **data)
+                    db.add(email)
+                    new_ids.append((email.id, data.get("subject", ""), data.get("body_text", "")))
+
+            if new_ids:
+                await db.commit()
+                logger.info(f"Gmail webhook: synced {len(new_ids)} new emails for user {user_id}")
+
+            # Classify any unclassified emails
+            result = await db.execute(
+                select(Email.id, Email.subject, Email.body_text)
+                .where(Email.user_id == user_id, Email.summary.is_(None))
+                .limit(5)
+            )
+            for row in result.fetchall():
+                try:
+                    await ai_service.classify_and_summarize(row.id, row.subject or "", row.body_text or "", db)
+                except Exception as e:
+                    logger.warning(f"Classification failed for {row.id}: {e}")
+        except Exception as e:
+            logger.error(f"Gmail webhook background sync failed for user {user_id}: {e}")
 
 
 @router.post("/webhook")
@@ -72,10 +112,24 @@ async def webhook(request: Request):
         body = await request.json()
         data = body.get("message", {}).get("data", "")
         if data:
-            import base64, json
             decoded = json.loads(base64.b64decode(data).decode("utf-8"))
-            logger.info(f"Gmail webhook: {decoded}")
-            # TODO: trigger email sync for the affected email address
+            email_address = decoded.get("emailAddress", "")
+            logger.info(f"Gmail webhook: notification for {email_address}")
+
+            if email_address:
+                # Find user_id by gmail email address
+                async with AsyncSessionLocal() as db:
+                    result = await db.execute(
+                        select(GmailAccount).where(GmailAccount.email == email_address)
+                    )
+                    account = result.scalar_one_or_none()
+
+                if account:
+                    # Trigger sync in background without blocking the response
+                    asyncio.create_task(_sync_user_emails_background(account.user_id))
+                else:
+                    logger.warning(f"Gmail webhook: no account found for {email_address}")
     except Exception as e:
         logger.error(f"Gmail webhook error: {e}")
     return {"ok": True}
+

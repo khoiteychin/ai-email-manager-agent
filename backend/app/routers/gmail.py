@@ -84,21 +84,52 @@ async def _sync_user_emails_background(user_id: str):
                 if not result.scalar_one_or_none():
                     email = Email(user_id=user_id, **data)
                     db.add(email)
-                    new_ids.append((email.id, data.get("subject", ""), data.get("body_text", "")))
+                    new_ids.append((email.id, data.get("subject", ""), data.get("body_text", ""), data.get("sender", "Unknown")))
 
             if new_ids:
                 await db.commit()
                 logger.info(f"Gmail webhook: synced {len(new_ids)} new emails for user {user_id}")
 
-            # Classify any unclassified emails
+            # Classify any unclassified emails and send notifications
             result = await db.execute(
-                select(Email.id, Email.subject, Email.body_text)
+                select(Email.id, Email.subject, Email.body_text, Email.sender)
                 .where(Email.user_id == user_id, Email.summary.is_(None))
                 .limit(5)
             )
             for row in result.fetchall():
                 try:
-                    await ai_service.classify_and_summarize(row.id, row.subject or "", row.body_text or "", db)
+                    ai_result = await ai_service.classify_and_summarize(row.id, row.subject or "", row.body_text or "", db)
+
+                    # Bug #4 fix: Send Discord + Telegram notifications after classifying new emails
+                    if ai_result:
+                        priority = ai_result.get("priority", "medium").upper()
+                        category = ai_result.get("category", "other").capitalize()
+                        summary = ai_result.get("summary", "No summary available.")
+                        subject = row.subject or "(No Subject)"
+                        sender = row.sender or "Unknown"
+
+                        notification_msg = (
+                            f"📩 **New Email: {subject}**\n"
+                            f"**From:** {sender}\n"
+                            f"**Priority:** {priority}\n"
+                            f"**Category:** {category}\n"
+                            f"**Summary:** {summary}"
+                        )
+
+                        # Send Discord notification
+                        try:
+                            from app.routers.discord import send_discord_notification
+                            await send_discord_notification(user_id, notification_msg, db)
+                        except Exception as discord_err:
+                            logger.warning(f"Discord notification failed: {discord_err}")
+
+                        # Send Telegram notification
+                        try:
+                            from app.routers.telegram import send_telegram_notification
+                            await send_telegram_notification(user_id, notification_msg, db)
+                        except Exception as tg_err:
+                            logger.warning(f"Telegram notification failed: {tg_err}")
+
                 except Exception as e:
                     logger.warning(f"Classification failed for {row.id}: {e}")
         except Exception as e:

@@ -175,6 +175,21 @@ async def toggle_star(
     return {"isStarred": email.is_starred}
 
 
+@router.post("/sync")
+async def sync_emails(
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Bug #3 fix: Manual sync trigger so users can refresh their inbox on demand."""
+    await ensure_user(current_user.uid, current_user.email, db)
+    try:
+        new_count = await sync_from_gmail(current_user.uid, db)
+        return {"success": True, "newEmails": new_count}
+    except Exception as e:
+        logger.warning(f"Manual sync failed for {current_user.uid}: {e}")
+        return {"success": False, "error": str(e)}
+
+
 @router.patch("/{email_id}/read")
 async def mark_read(
     email_id: str,
@@ -195,19 +210,28 @@ async def mark_read(
 
 
 def _email_to_dict(email: Email) -> dict:
+    # Bug #2 fix: add fromAddress/toAddress/bodyPreview aliases so frontend
+    # Email interface fields map correctly (no more 'Unknown' sender)
+    body_preview = (email.body_text or "")[:200].strip() if email.body_text else ""
+    sender_display = email.sender or email.sender_email or "Unknown"
     return {
-        "id": email.id,
+        "id": str(email.id),
         "gmailId": email.gmail_id,
         "threadId": email.thread_id,
-        "sender": email.sender,
-        "senderEmail": email.sender_email,
-        "receiver": email.receiver,
-        "subject": email.subject,
+        # Canonical name fields
+        "sender": sender_display,
+        "senderEmail": email.sender_email or "",
+        "receiver": email.receiver or "",
+        # Alias fields expected by frontend
+        "fromAddress": sender_display,
+        "toAddress": email.receiver or "",
+        "subject": email.subject or "(No Subject)",
         "body": email.body,
         "bodyText": email.body_text,
+        "bodyPreview": body_preview,
         "summary": email.summary,
-        "category": email.category,
-        "priority": email.priority,
+        "category": email.category or "other",
+        "priority": email.priority or "medium",
         "sentiment": email.sentiment,
         "isRead": email.is_read,
         "isStarred": email.is_starred,

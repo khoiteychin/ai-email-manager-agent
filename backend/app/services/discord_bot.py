@@ -28,8 +28,10 @@ async def on_message(message: discord.Message):
 
     # Check if the bot is mentioned
     if client.user in message.mentions:
-        # Remove the mention from the message content
-        content = message.content.replace(f'<@{client.user.id}>', '').strip()
+        # Bug #8 fix: Remove both mention formats – <@ID> and <@!ID> (nickname variant)
+        content = message.content
+        content = content.replace(f'<@{client.user.id}>', '').strip()
+        content = content.replace(f'<@!{client.user.id}>', '').strip()
         
         if not content:
             await message.reply("Xin chào! Bạn cần giúp gì về email hôm nay?")

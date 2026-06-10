@@ -20,11 +20,14 @@ import { formatDistanceToNow } from 'date-fns';
 interface Stats {
   totalEmails: number;
   unreadCount: number;
+  starredCount: number;
+  highPriorityCount: number;
   categoryBreakdown: Array<{ category: string; count: number }>;
   recentActivity: Array<{
     id: string;
     subject: string;
     fromAddress: string;
+    sender: string;
     category: string;
     priority: string;
     isRead: boolean;
@@ -73,7 +76,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     userApi.getStats()
-      .then((res) => setStats(res.data))
+      .then((res) => {
+        // Bug #1 fix: backend now returns correctly named fields
+        setStats(res.data);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -125,7 +131,7 @@ export default function DashboardPage() {
             <StatCard
               icon={<Star className="w-5 h-5" />}
               label="Starred"
-              value="—"
+              value={stats?.starredCount ?? 0}
               sub="Quick access"
               color="#a855f7"
             />
@@ -177,8 +183,11 @@ export default function DashboardPage() {
                               </span>
                             </div>
                             <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs" style={{ color: '#64748b' }}>
-                                {email.fromAddress}
+                              <span
+                                className="text-xs"
+                                style={{ color: '#64748b' }}
+                              >
+                                {email.fromAddress || email.sender || 'Unknown'}
                               </span>
                               <span className="text-xs" style={{ color: '#1e2d4a' }}>•</span>
                               <span className="text-xs" style={{ color: '#475569' }}>

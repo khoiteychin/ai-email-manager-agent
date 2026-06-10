@@ -11,6 +11,7 @@ import {
   Plus,
   MessageSquare,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
@@ -25,9 +26,12 @@ interface Message {
   createdAt: Date;
 }
 
+// Bug #7a fix: Updated Session interface to match backend response fields
 interface Session {
-  sessionId: string;
-  content: string;
+  id: string;          // canonical (was sessionId before)
+  sessionId: string;   // alias provided by backend
+  title: string;       // canonical (was content before)
+  content: string;     // alias provided by backend
   createdAt: string;
 }
 
@@ -45,6 +49,7 @@ export default function ChatPage() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -59,9 +64,11 @@ export default function ChatPage() {
   const loadSessions = async () => {
     try {
       const res = await aiApi.getSessions();
-      setSessions(res.data);
+      // Backend returns array directly
+      const data = Array.isArray(res.data) ? res.data : [];
+      setSessions(data);
     } catch {
-      // Silently fail
+      // Silently fail – user might not have any sessions yet
     } finally {
       setSessionsLoading(false);
     }
@@ -71,12 +78,14 @@ export default function ChatPage() {
     setSessionId(sid);
     try {
       const res = await aiApi.getSessionHistory(sid);
+      // Backend returns { session, messages } or just array
+      const msgs = res.data?.messages ?? res.data ?? [];
       setMessages(
-        res.data.map((m: any) => ({
-          id: m.id,
+        msgs.map((m: any) => ({
+          id: m.id || uuidv4(),
           role: m.role,
           content: m.content,
-          createdAt: new Date(m.createdAt),
+          createdAt: new Date(m.createdAt || Date.now()),
         }))
       );
     } catch {
@@ -88,6 +97,25 @@ export default function ChatPage() {
     setSessionId(uuidv4());
     setMessages([]);
     setInput('');
+  };
+
+  // Bug #7b fix: Delete session handler
+  const deleteSession = async (e: React.MouseEvent, sid: string) => {
+    e.stopPropagation();
+    setDeletingId(sid);
+    try {
+      await aiApi.deleteSession(sid);
+      setSessions((prev) => prev.filter((s) => s.id !== sid && s.sessionId !== sid));
+      // If we deleted the active session, start a new chat
+      if (sessionId === sid) {
+        newChat();
+      }
+      toast.success('Chat deleted');
+    } catch {
+      toast.error('Failed to delete chat');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const sendMessage = async (text?: string) => {
@@ -112,17 +140,25 @@ export default function ChatPage() {
 
     try {
       const res = await aiApi.chat({ message: messageText, sessionId });
+      // Bug #7a fix: backend returns { sessionId, message: { id, role, content, createdAt }, sources }
+      const msgData = res.data.message;
       const assistantMessage: Message = {
-        id: uuidv4(),
+        id: msgData.id || uuidv4(),
         role: 'assistant',
-        content: res.data.message.content,
-        createdAt: new Date(),
+        content: msgData.content,
+        createdAt: new Date(msgData.createdAt || Date.now()),
       };
       setMessages((prev) => [...prev, assistantMessage]);
-      // Refresh sessions
+
+      // Update sessionId in case backend created a new session
+      if (res.data.sessionId) {
+        setSessionId(String(res.data.sessionId));
+      }
+
+      // Refresh sessions list
       loadSessions();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'AI is temporarily unavailable');
+      toast.error(err.response?.data?.detail || err.response?.data?.message || 'AI is temporarily unavailable');
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
     } finally {
       setLoading(false);
@@ -166,32 +202,55 @@ export default function ChatPage() {
               No chats yet
             </p>
           ) : (
-            sessions.map((session) => (
-              <button
-                key={session.sessionId}
-                onClick={() => loadSession(session.sessionId)}
-                className="w-full text-left px-3 py-2.5 rounded-lg text-xs transition-all duration-200"
-                style={{
-                  background:
-                    session.sessionId === sessionId
-                      ? 'rgba(59,130,246,0.15)'
-                      : 'transparent',
-                  border:
-                    session.sessionId === sessionId
+            sessions.map((session) => {
+              // Bug #7a fix: use id (canonical) with sessionId as fallback
+              const sid = session.id || session.sessionId;
+              const isActive = sessionId === sid;
+              const label = session.title || session.content || 'Chat Session';
+
+              return (
+                <div
+                  key={sid}
+                  className="w-full text-left rounded-lg group relative"
+                  style={{
+                    background: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
+                    border: isActive
                       ? '1px solid rgba(59,130,246,0.2)'
                       : '1px solid transparent',
-                  color: session.sessionId === sessionId ? '#60a5fa' : '#64748b',
-                }}
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <MessageSquare className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate font-medium">Chat Session</span>
+                  }}
+                >
+                  {/* Session click area */}
+                  <button
+                    onClick={() => loadSession(sid)}
+                    className="w-full text-left px-3 py-2.5 text-xs transition-all duration-200 pr-8"
+                    style={{ color: isActive ? '#60a5fa' : '#64748b' }}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <MessageSquare className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate font-medium">{label}</span>
+                    </div>
+                    <span className="text-xs" style={{ color: '#475569' }}>
+                      {formatDistanceToNow(new Date(session.createdAt), { addSuffix: true })}
+                    </span>
+                  </button>
+
+                  {/* Bug #7b fix: Delete button on each session */}
+                  <button
+                    onClick={(e) => deleteSession(e, sid)}
+                    disabled={deletingId === sid}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-red-500/20"
+                    title="Delete chat"
+                    style={{ color: '#ef4444' }}
+                  >
+                    {deletingId === sid ? (
+                      <Spinner className="w-3 h-3" />
+                    ) : (
+                      <Trash2 className="w-3 h-3" />
+                    )}
+                  </button>
                 </div>
-                <span className="text-xs" style={{ color: '#475569' }}>
-                  {formatDistanceToNow(new Date(session.createdAt), { addSuffix: true })}
-                </span>
-              </button>
-            ))
+              );
+            })
           )}
         </div>
       </div>
@@ -402,7 +461,7 @@ export default function ChatPage() {
             </button>
           </div>
           <p className="text-xs text-center mt-2" style={{ color: '#334155' }}>
-            AI responses are powered by your n8n workflow
+            AI responses are powered by RAG search over your emails
           </p>
         </div>
       </div>

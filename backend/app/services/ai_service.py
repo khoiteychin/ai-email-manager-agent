@@ -136,6 +136,7 @@ async def generate_draft(
                 f"{(email.body_text or '')[:1000]}"
             )
 
+    # Bug #5/#6 fix: request plain text body, not HTML, so frontend can display without raw tags
     prompt = f"""You are an expert email writer. Create a professional email.
 {f'Context:{chr(10)}{email_context}' if email_context else ''}
 
@@ -144,9 +145,9 @@ Instruction: {instruction}
 Return a JSON object with:
 {{
   "to": "recipient email if mentioned, otherwise empty string",
-  "subject": "email subject",
-  "body": "full email body in HTML format",
-  "signature": "professional signature"
+  "subject": "email subject line",
+  "body": "full email body as plain text only (no HTML tags, no markdown, use newlines for paragraphs)",
+  "signature": "professional signature as plain text"
 }}"""
 
     completion = await openai.chat.completions.create(
@@ -181,13 +182,32 @@ async def get_sessions(user_id: str, db: AsyncSession) -> list:
     sessions = result.scalars().all()
     return [
         {
-            "id": s.id,
-            "title": s.title,
+            "id": str(s.id),
+            "sessionId": str(s.id),  # alias for frontend compat
+            "title": s.title or "New Chat",
+            "content": s.title or "New Chat",  # alias for frontend compat
             "createdAt": s.created_at.isoformat() if s.created_at else None,
             "updatedAt": s.updated_at.isoformat() if s.updated_at else None,
         }
         for s in sessions
     ]
+
+
+# Bug #7 fix: Add delete_session function
+async def delete_session(user_id: str, session_id: str, db: AsyncSession) -> bool:
+    """Delete a chat session and all its messages (CASCADE)."""
+    result = await db.execute(
+        select(AiChatSession).where(
+            AiChatSession.id == session_id,
+            AiChatSession.user_id == user_id
+        )
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        return False
+    await db.delete(session)
+    await db.commit()
+    return True
 
 
 async def get_session_history(user_id: str, session_id: str, db: AsyncSession) -> dict:

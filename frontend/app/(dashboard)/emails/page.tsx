@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emailsApi } from '@/lib/api';
-import { Card, CategoryBadge, PriorityDot, Spinner, EmptyState, Input } from '@/components/ui';
+import { Card, CategoryBadge, PriorityDot, Spinner, EmptyState } from '@/components/ui';
 import {
   Mail,
   Search,
@@ -13,16 +13,21 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import toast from 'react-hot-toast';
 
 const CATEGORIES = ['All', 'Work', 'Personal', 'Ads', 'Invoice', 'Social'];
 const PRIORITIES = ['All', 'High', 'Medium', 'Low'];
 
+// Bug #2 fix: Updated interface to match backend _email_to_dict() fields
 interface Email {
   id: string;
   subject: string;
+  // Both fromAddress (alias) and sender (canonical) available
+  sender: string;
   fromAddress: string;
   bodyPreview: string;
   summary: string;
@@ -37,10 +42,14 @@ export default function EmailsPage() {
   const [emails, setEmails] = useState<Email[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, totalPages: 1 });
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [priority, setPriority] = useState('All');
   const [page, setPage] = useState(1);
+  // Bug #3 fix: track last refresh time for auto-polling display
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchEmails = useCallback(async () => {
     setLoading(true);
@@ -54,6 +63,7 @@ export default function EmailsPage() {
       });
       setEmails(res.data.data);
       setMeta(res.data.meta);
+      setLastRefresh(new Date());
     } catch (err) {
       console.error(err);
     } finally {
@@ -65,6 +75,35 @@ export default function EmailsPage() {
     const timer = setTimeout(fetchEmails, 300);
     return () => clearTimeout(timer);
   }, [fetchEmails]);
+
+  // Bug #3 fix: auto-refresh every 60 seconds to pick up new emails
+  useEffect(() => {
+    pollingRef.current = setInterval(() => {
+      fetchEmails();
+    }, 60_000);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [fetchEmails]);
+
+  // Bug #3 fix: manual sync that triggers Gmail API fetch
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await emailsApi.sync();
+      const newCount = res.data.newEmails ?? 0;
+      if (newCount > 0) {
+        toast.success(`✨ ${newCount} new email${newCount > 1 ? 's' : ''} synced!`);
+        await fetchEmails();
+      } else {
+        toast.success('Inbox is up to date');
+      }
+    } catch {
+      toast.error('Sync failed. Please try again.');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const toggleStar = async (e: React.MouseEvent, emailId: string) => {
     e.preventDefault();
@@ -86,8 +125,28 @@ export default function EmailsPage() {
           </h1>
           <p className="text-sm mt-1" style={{ color: '#64748b' }}>
             {meta.total} emails total
+            {lastRefresh && (
+              <span className="ml-2">
+                · Updated {formatDistanceToNow(lastRefresh, { addSuffix: true })}
+              </span>
+            )}
           </p>
         </div>
+
+        {/* Bug #3 fix: Manual Refresh button */}
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 disabled:opacity-50"
+          style={{
+            background: 'rgba(59,130,246,0.1)',
+            border: '1px solid rgba(59,130,246,0.2)',
+            color: '#60a5fa',
+          }}
+        >
+          <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+          {syncing ? 'Syncing...' : 'Refresh'}
+        </button>
       </div>
 
       {/* Filters */}
@@ -134,7 +193,7 @@ export default function EmailsPage() {
         <EmptyState
           icon={<Mail className="w-8 h-8" />}
           title="No emails found"
-          description="Try adjusting your search or filters, or connect your Gmail account"
+          description="Try adjusting your search or filters, or click Refresh to sync Gmail"
         />
       ) : (
         <div className="space-y-2">
@@ -177,8 +236,9 @@ export default function EmailsPage() {
                         </span>
                       </div>
 
+                      {/* Bug #2 fix: use sender/fromAddress (both provided by backend now) */}
                       <div className="text-xs mb-2" style={{ color: '#64748b' }}>
-                        From: {email.fromAddress || 'Unknown'}
+                        From: {email.sender || email.fromAddress || 'Unknown'}
                       </div>
 
                       {email.summary ? (

@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
@@ -71,3 +71,17 @@ async def get_session_history(
     db: AsyncSession = Depends(get_db),
 ):
     return await ai_service.get_session_history(current_user.uid, sessionId, db)
+
+
+# Bug #7 fix: Add DELETE endpoint so users can remove chat sessions from the UI
+@router.delete("/sessions/{session_id}")
+async def delete_session(
+    session_id: str,
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    deleted = await ai_service.delete_session(current_user.uid, session_id, db)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"success": True}
+

@@ -121,6 +121,8 @@ export const emailsApi = {
   get: (id: string) => api.get(`/emails/${id}`),
   toggleStar: (id: string) => api.patch(`/emails/${id}/star`),
   markAsRead: (id: string, isRead: boolean) => api.patch(`/emails/${id}/read`, { isRead }),
+  // Bug #3 fix: manual sync trigger
+  sync: () => api.post('/emails/sync'),
 };
 
 // ─── AI APIs ─────────────────────────────────────────────────
@@ -132,6 +134,8 @@ export const aiApi = {
     api.post('/ai/send', data),
   getSessions: () => api.get('/ai/sessions'),
   getSessionHistory: (sessionId: string) => api.get(`/ai/sessions/history?sessionId=${sessionId}`),
+  // Bug #7 fix: add deleteSession so chat UI can remove sessions
+  deleteSession: (sessionId: string) => api.delete(`/ai/sessions/${sessionId}`),
 };
 
 // ─── Connect APIs ─────────────────────────────────────────────

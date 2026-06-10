@@ -22,8 +22,12 @@ import toast from 'react-hot-toast';
 interface Email {
   id: string;
   subject: string;
+  // Bug #2 fix: backend returns both sender (canonical) and fromAddress (alias)
+  sender: string;
   fromAddress: string;
+  receiver: string;
   toAddress: string;
+  bodyText: string;
   bodyPreview: string;
   summary: string;
   category: string;
@@ -58,8 +62,9 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
     if (!email) return;
     setGenerating(true);
     try {
+      const senderName = email.sender || email.fromAddress || 'the sender';
       const res = await aiApi.generateDraft({
-        instruction: `Generate a professional reply to this email from ${email.fromAddress} with subject: "${email.subject}"`,
+        instruction: `Generate a professional reply to this email from ${senderName} with subject: "${email.subject}"`,
         emailId: email.id,
         context: email.summary || email.bodyPreview,
       });
@@ -84,10 +89,15 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
     if (!email || !draft?.body) return;
     setSendingEmail(true);
     try {
+      // Bug #5/#6 fix: body is now plain text, wrap in <p> tags for Gmail API HTML compatibility
+      const htmlBody = draft.body
+        .split('\n\n')
+        .map((para: string) => `<p>${para.replace(/\n/g, '<br/>')}</p>`)
+        .join('');
       await aiApi.sendEmail({
-        to: email.fromAddress,
+        to: email.sender || email.fromAddress,
         subject: draft.subject || `Re: ${email.subject}`,
-        body: draft.body,
+        body: htmlBody,
         emailId: email.id,
       });
       toast.success('Email sent successfully! ✨');
@@ -143,7 +153,8 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
                 {email.subject || '(No subject)'}
               </h1>
               <div className="flex items-center gap-3 text-sm" style={{ color: '#64748b' }}>
-                <span>From: {email.fromAddress}</span>
+                {/* Bug #2 fix: use sender (canonical) with fromAddress fallback */}
+                <span>From: {email.sender || email.fromAddress || 'Unknown'}</span>
                 <span>·</span>
                 <span>
                   {email.receivedAt
@@ -183,13 +194,13 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
           )}
 
           {/* Body */}
-          {email.bodyPreview && (
+          {(email.bodyPreview || email.bodyText) && (
             <div
               className="p-4 rounded-xl"
               style={{ background: 'rgba(14,22,41,0.8)', border: '1px solid rgba(59,130,246,0.08)' }}
             >
               <p className="text-sm whitespace-pre-wrap" style={{ color: '#94a3b8' }}>
-                {email.bodyPreview}
+                {email.bodyPreview || email.bodyText}
               </p>
             </div>
           )}
@@ -247,8 +258,9 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
                     Subject: {draft.subject}
                   </p>
                 )}
+                {/* Bug #5/#6 fix: draft body is plain text, display with whitespace-pre-wrap */}
                 <p className="text-sm whitespace-pre-wrap" style={{ color: '#cbd5e1' }}>
-                  {draft.body || JSON.stringify(draft.draft, null, 2)}
+                  {draft.body || (draft as any).signature || JSON.stringify(draft, null, 2)}
                 </p>
               </div>
 

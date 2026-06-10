@@ -42,7 +42,7 @@ def run_migrations():
             print("Executing migration script...")
             cursor.execute(sql_script)
             print("Migration script executed successfully.")
-        conn.conn = None
+        conn.close()
         print("[SUCCESS] Database migration completed successfully.")
     except Exception as e:
         print(f"[ERROR] Migration failed: {str(e)}")

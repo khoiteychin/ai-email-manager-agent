@@ -147,40 +147,6 @@ async def list_emails(
     }
 
 
-@router.get("/{email_id}")
-async def get_email(
-    email_id: str,
-    current_user: AuthUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(Email).where(Email.id == email_id, Email.user_id == current_user.uid)
-    )
-    email = result.scalar_one_or_none()
-    if not email:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Email not found")
-    return _email_to_dict(email)
-
-
-@router.patch("/{email_id}/star")
-async def toggle_star(
-    email_id: str,
-    current_user: AuthUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(
-        select(Email).where(Email.id == email_id, Email.user_id == current_user.uid)
-    )
-    email = result.scalar_one_or_none()
-    if not email:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Email not found")
-    email.is_starred = not email.is_starred
-    await db.commit()
-    return {"isStarred": email.is_starred}
-
-
 @router.get("/check-new")
 async def check_new_emails(
     since: Optional[str] = Query(None, description="ISO 8601 timestamp – return emails newer than this"),
@@ -222,6 +188,40 @@ async def check_new_emails(
             for e in new_emails
         ],
     }
+
+
+@router.get("/{email_id}")
+async def get_email(
+    email_id: str,
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Email).where(Email.id == email_id, Email.user_id == current_user.uid)
+    )
+    email = result.scalar_one_or_none()
+    if not email:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Email not found")
+    return _email_to_dict(email)
+
+
+@router.patch("/{email_id}/star")
+async def toggle_star(
+    email_id: str,
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Email).where(Email.id == email_id, Email.user_id == current_user.uid)
+    )
+    email = result.scalar_one_or_none()
+    if not email:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Email not found")
+    email.is_starred = not email.is_starred
+    await db.commit()
+    return {"isStarred": email.is_starred}
 
 
 @router.post("/sync")

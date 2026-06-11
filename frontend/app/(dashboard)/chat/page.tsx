@@ -118,6 +118,27 @@ export default function ChatPage() {
     }
   };
 
+  const handleDeleteMessage = async (messageId: string) => {
+    const updatedMessages = [...messages];
+    const index = updatedMessages.findIndex((m) => m.id === messageId);
+    if (index !== -1) {
+      const targetRole = updatedMessages[index].role;
+      updatedMessages.splice(index, 1);
+      if (targetRole === 'user' && index < updatedMessages.length && updatedMessages[index].role === 'assistant') {
+        updatedMessages.splice(index, 1);
+      }
+      setMessages(updatedMessages);
+    }
+
+    try {
+      await aiApi.deleteMessage(messageId);
+      toast.success('Message deleted');
+    } catch {
+      toast.error('Failed to delete message');
+      loadSession(sessionId);
+    }
+  };
+
   const sendMessage = async (text?: string) => {
     const messageText = text || input.trim();
     if (!messageText || loading) return;
@@ -331,8 +352,7 @@ export default function ChatPage() {
                 key={message.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`flex items-start gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''
-                  }`}
+                className={`flex items-start gap-3 group relative ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
               >
                 {/* Avatar */}
                 <div
@@ -380,6 +400,15 @@ export default function ChatPage() {
                     <p className="whitespace-pre-wrap">{message.content}</p>
                   )}
                 </div>
+
+                {/* Delete Message Button */}
+                <button
+                  onClick={() => handleDeleteMessage(message.id)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-red-500/10 text-red-400 self-center"
+                  title="Delete message"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </motion.div>
             ))}
           </AnimatePresence>

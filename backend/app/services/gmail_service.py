@@ -9,7 +9,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, update
-from app.models import GmailAccount, User
+from app.models import GmailAccount, User, Label
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -464,3 +464,116 @@ async def renew_watch_for_all_users(db: AsyncSession) -> None:
             await setup_watch(account.user_id, db)
         except Exception as e:
             logger.error(f"Watch renewal failed for user {account.user_id}: {e}")
+
+
+async def get_or_create_gmail_label(user_id: str, label_name: str, db: AsyncSession) -> str:
+    """Get the Gmail label ID from the DB or create it in Gmail and store it."""
+    result = await db.execute(
+        select(Label).where(Label.user_id == user_id, Label.name == label_name)
+    )
+    db_label = result.scalar_one_or_none()
+    
+    if db_label and db_label.gmail_label_id:
+        return db_label.gmail_label_id
+        
+    service = await get_gmail_service(user_id, db)
+    if not service:
+        raise Exception("Gmail not connected")
+        
+    labels_list = service.users().labels().list(userId="me").execute()
+    gmail_labels = labels_list.get("labels", [])
+    
+    gmail_label_id = None
+    for gl in gmail_labels:
+        if gl["name"].lower() == label_name.lower():
+            gmail_label_id = gl["id"]
+            break
+            
+    if not gmail_label_id:
+        try:
+            new_label = service.users().labels().create(
+                userId="me",
+                body={
+                    "name": label_name,
+                    "labelListVisibility": "labelShow",
+                    "messageListVisibility": "show",
+                }
+            ).execute()
+            gmail_label_id = new_label["id"]
+            logger.info(f"Created Gmail label '{label_name}' for user {user_id}")
+        except Exception as e:
+            logger.error(f"Failed to create Gmail label '{label_name}': {e}")
+            raise e
+            
+    if not db_label:
+        db_label = Label(
+            user_id=user_id,
+            name=label_name,
+            gmail_label_id=gmail_label_id,
+            color="#6366f1"
+        )
+        db.add(db_label)
+    else:
+        db_label.gmail_label_id = gmail_label_id
+        
+    await db.commit()
+    return gmail_label_id
+
+
+async def apply_gmail_label_to_message(user_id: str, gmail_message_id: str, category: str, db: AsyncSession):
+    """Classifies email and applies the corresponding Gmail label."""
+    label_name = category.capitalize()
+    try:
+        gmail_label_id = await get_or_create_gmail_label(user_id, label_name, db)
+        
+        service = await get_gmail_service(user_id, db)
+        if not service:
+            return
+            
+        service.users().messages().modify(
+            userId="me",
+            id=gmail_message_id,
+            body={"addLabelIds": [gmail_label_id]}
+        ).execute()
+        logger.info(f"Applied label '{label_name}' (ID: {gmail_label_id}) to message {gmail_message_id} for user {user_id}")
+    except Exception as e:
+        logger.error(f"Error applying Gmail label '{label_name}' to message {gmail_message_id}: {e}")
+
+
+async def update_draft(user_id: str, db: AsyncSession, draft_id: str, to: str, subject: str, body: str) -> None:
+    service = await get_gmail_service(user_id, db)
+    if not service:
+        raise Exception("Gmail not connected")
+
+    result = await db.execute(select(GmailAccount).where(GmailAccount.user_id == user_id))
+    account = result.scalar_one_or_none()
+    from_email = account.email if account else "me"
+
+    raw_email = "\n".join([
+        f"From: {from_email}",
+        f"To: {to}",
+        f"Subject: {subject}",
+        "Content-Type: text/html; charset=utf-8",
+        "",
+        body,
+    ])
+
+    encoded = base64.urlsafe_b64encode(raw_email.encode("utf-8")).decode("utf-8")
+    service.users().drafts().update(
+        userId="me",
+        id=draft_id,
+        body={"message": {"raw": encoded}},
+    ).execute()
+
+
+async def send_draft(user_id: str, db: AsyncSession, draft_id: str) -> None:
+    service = await get_gmail_service(user_id, db)
+    if not service:
+        raise Exception("Gmail not connected")
+
+    service.users().drafts().send(
+        userId="me",
+        body={"id": draft_id},
+    ).execute()
+
+

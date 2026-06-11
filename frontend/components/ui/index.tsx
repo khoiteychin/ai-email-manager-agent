@@ -2,16 +2,20 @@ import { clsx } from 'clsx';
 
 // ─── Badge ───────────────────────────────────────────────────
 const CATEGORY_CLASSES: Record<string, string> = {
-  Work: 'badge-work',
-  Personal: 'badge-personal',
-  Ads: 'badge-ads',
-  Invoice: 'badge-invoice',
-  Social: 'badge-social',
+  work: 'badge-work',
+  personal: 'badge-personal',
+  ads: 'badge-ads',
+  invoice: 'badge-invoice',
+  social: 'badge-social',
+  promotion: 'badge-promotion',
+  security: 'badge-security',
 };
 
 export function CategoryBadge({ category }: { category: string }) {
-  const cls = CATEGORY_CLASSES[category] || 'badge-work';
-  return <span className={clsx('badge', cls)}>{category}</span>;
+  const normalized = category.toLowerCase();
+  const cls = CATEGORY_CLASSES[normalized] || 'badge-work';
+  const label = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  return <span className={clsx('badge', cls)}>{label}</span>;
 }
 
 const PRIORITY_CLASSES: Record<string, string> = {

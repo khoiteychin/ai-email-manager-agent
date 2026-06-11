@@ -120,6 +120,10 @@ async def _sync_user_emails_background(user_id: str):
             )
             for row in result.fetchall():
                 try:
+                    import datetime
+                    received_time = datetime.datetime.now(datetime.timezone.utc)
+                    logger.info(f"Webhook: processing email '{row.subject}' received/synced at {received_time.isoformat()}")
+
                     ai_result = await ai_service.classify_and_summarize(row.id, row.subject or "", row.body_text or "", db)
 
                     # Bug #4 fix: Send Discord + Telegram notifications after classifying new emails
@@ -142,6 +146,8 @@ async def _sync_user_emails_background(user_id: str):
                         try:
                             from app.routers.discord import send_discord_notification
                             await send_discord_notification(user_id, notification_msg, db)
+                            notified_time = datetime.datetime.now(datetime.timezone.utc)
+                            logger.info(f"Webhook: Discord notified for Email '{subject}' at {notified_time.isoformat()}. Delay: {(notified_time - received_time).total_seconds()}s")
                         except Exception as discord_err:
                             logger.warning(f"Discord notification failed: {discord_err}")
 

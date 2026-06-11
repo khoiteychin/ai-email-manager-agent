@@ -37,11 +37,13 @@ interface Stats {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  Work: '#3b82f6',
-  Personal: '#10b981',
-  Ads: '#f59e0b',
-  Invoice: '#a855f7',
-  Social: '#ec4899',
+  work: '#3b82f6',
+  personal: '#10b981',
+  ads: '#f59e0b',
+  invoice: '#a855f7',
+  social: '#ec4899',
+  promotion: '#ef4444',
+  security: '#06b6d4',
 };
 
 function StatCard({ icon, label, value, sub, color }: {
@@ -229,11 +231,13 @@ export default function DashboardPage() {
                   stats?.categoryBreakdown?.map((item) => {
                     const total = stats.totalEmails || 1;
                     const pct = Math.round((item.count / total) * 100);
-                    const color = CATEGORY_COLORS[item.category] || '#3b82f6';
+                    const catLower = item.category.toLowerCase();
+                    const color = CATEGORY_COLORS[catLower] || '#3b82f6';
+                    const catLabel = catLower.charAt(0).toUpperCase() + catLower.slice(1);
                     return (
                       <div key={item.category}>
                         <div className="flex justify-between text-xs mb-1.5">
-                          <span style={{ color: '#94a3b8' }}>{item.category}</span>
+                          <span style={{ color: '#94a3b8' }}>{catLabel}</span>
                           <span style={{ color }}>{item.count}</span>
                         </div>
                         <div

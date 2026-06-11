@@ -158,9 +158,33 @@ Return a JSON object with:
     )
 
     try:
-        return json.loads(completion.choices[0].message.content or "{}")
+        draft_content = json.loads(completion.choices[0].message.content or "{}")
     except Exception:
-        return {"subject": "", "body": completion.choices[0].message.content, "to": ""}
+        draft_content = {"subject": "", "body": completion.choices[0].message.content or "", "to": ""}
+
+    draft_id = None
+    try:
+        html_body = draft_content.get("body", "")
+        if html_body:
+            html_body_formatted = "".join(
+                f"<p>{para.replace(chr(10), '<br/>')}</p>"
+                for para in html_body.split("\n\n")
+            )
+        else:
+            html_body_formatted = ""
+
+        draft_id = await gmail_service.create_draft(
+            user_id=user_id,
+            db=db,
+            to=draft_content.get("to", ""),
+            subject=draft_content.get("subject", ""),
+            body=html_body_formatted
+        )
+    except Exception as e:
+        logger.warning(f"Failed to pre-create Gmail draft: {e}")
+
+    draft_content["id"] = draft_id
+    return draft_content
 
 
 # ─── Send Email ────────────────────────────────────────────────
@@ -254,7 +278,7 @@ Body: {body_text[:2000]}
 
 Return JSON with:
 {{
-  "category": "one of: work, personal, social, promotion, invoice, security, spam, other",
+  "category": "one of: work, personal, social, ads, invoice, promotion, security",
   "priority": "one of: low, medium, high",
   "sentiment": "one of: positive, neutral, negative",
   "summary": "2-3 sentence summary"
@@ -269,11 +293,17 @@ Return JSON with:
         )
         result = json.loads(completion.choices[0].message.content or "{}")
 
+        # Canonical normalization
+        valid_categories = {"work", "personal", "social", "ads", "invoice", "promotion", "security"}
+        category = result.get("category", "personal").lower()
+        if category not in valid_categories:
+            category = "personal"
+
         await db.execute(
             text("""UPDATE emails SET category=:category, priority=:priority,
                   sentiment=:sentiment, summary=:summary WHERE id=:id"""),
             {
-                "category": result.get("category", "other"),
+                "category": category,
                 "priority": result.get("priority", "medium"),
                 "sentiment": result.get("sentiment", "neutral"),
                 "summary": result.get("summary", ""),
@@ -281,6 +311,20 @@ Return JSON with:
             },
         )
         await db.commit()
+
+        # Apply Gmail Label Integration
+        try:
+            result_email = await db.execute(select(Email).where(Email.id == email_id))
+            email_obj = result_email.scalar_one_or_none()
+            if email_obj and email_obj.gmail_id:
+                await gmail_service.apply_gmail_label_to_message(
+                    email_obj.user_id,
+                    email_obj.gmail_id,
+                    category,
+                    db
+                )
+        except Exception as label_err:
+            logger.warning(f"Failed to apply Gmail label for {email_id}: {label_err}")
 
         # Generate embedding asynchronously
         text_for_embed = f"{subject}\n{body_text}"
@@ -351,4 +395,46 @@ async def search_similar_emails(
             .limit(limit)
         )
         return list(result.scalars().all())
+
+
+async def delete_chat_message(user_id: str, message_id: str, db: AsyncSession) -> bool:
+    """Delete a chat message. If it is a user message, also delete the subsequent assistant response."""
+    import uuid
+    try:
+        msg_uuid = uuid.UUID(message_id)
+    except ValueError:
+        return False
+
+    # Find the message and check if session belongs to user
+    result = await db.execute(
+        select(AiChatMessage)
+        .join(AiChatSession)
+        .where(AiChatMessage.id == msg_uuid, AiChatSession.user_id == user_id)
+    )
+    message = result.scalar_one_or_none()
+    if not message:
+        return False
+
+    session_id = message.session_id
+
+    if message.role == "user":
+        # Find assistant messages in same session created after this message
+        assistant_result = await db.execute(
+            select(AiChatMessage)
+            .where(
+                AiChatMessage.session_id == session_id,
+                AiChatMessage.role == "assistant",
+                AiChatMessage.created_at >= message.created_at
+            )
+            .order_by(AiChatMessage.created_at.asc())
+            .limit(1)
+        )
+        assistant_msg = assistant_result.scalar_one_or_none()
+        if assistant_msg:
+            await db.delete(assistant_msg)
+
+    await db.delete(message)
+    await db.commit()
+    return True
+
 

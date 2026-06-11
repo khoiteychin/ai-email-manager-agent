@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { emailsApi, aiApi } from '@/lib/api';
+import { emailsApi, aiApi, draftsApi } from '@/lib/api';
 import { Card, CategoryBadge, PriorityDot, Button, Spinner } from '@/components/ui';
 import {
   ArrowLeft,
@@ -38,9 +38,10 @@ interface Email {
 }
 
 interface DraftResult {
+  id?: string;
   subject?: string;
   body?: string;
-  draft?: any;
+  to?: string;
 }
 
 export default function EmailDetailPage({ params }: { params: { id: string } }) {
@@ -50,6 +51,13 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+  
+  // Draft Editor State
+  const [isEditingDraft, setIsEditingDraft] = useState(false);
+  const [editTo, setEditTo] = useState('');
+  const [editSubject, setEditSubject] = useState('');
+  const [editBody, setEditBody] = useState('');
+  const [savingDraft, setSavingDraft] = useState(false);
 
   useEffect(() => {
     emailsApi.get(params.id)
@@ -69,6 +77,9 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
         context: email.summary || email.bodyPreview,
       });
       setDraft(res.data);
+      setEditTo(res.data.to || email.sender || email.fromAddress || '');
+      setEditSubject(res.data.subject || `Re: ${email.subject}`);
+      setEditBody(res.data.body || '');
       toast.success('Draft generated!');
     } catch {
       toast.error('Failed to generate draft');
@@ -78,11 +89,57 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
   };
 
   const copyDraft = async () => {
-    if (!draft?.body) return;
-    await navigator.clipboard.writeText(draft.body);
+    const textToCopy = isEditingDraft ? editBody : (draft?.body || '');
+    if (!textToCopy) return;
+    await navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast.success('Copied to clipboard!');
+  };
+
+  const saveDraft = async () => {
+    if (!draft?.id) {
+      toast.error('No draft to save');
+      return;
+    }
+    setSavingDraft(true);
+    try {
+      await draftsApi.save(draft.id, {
+        to: editTo,
+        subject: editSubject,
+        body: editBody,
+      });
+      setDraft({
+        ...draft,
+        to: editTo,
+        subject: editSubject,
+        body: editBody,
+      });
+      setIsEditingDraft(false);
+      toast.success('Draft saved');
+    } catch {
+      toast.error('Failed to save draft');
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const sendDraftEmail = async () => {
+    if (!draft?.id) {
+      toast.error('No draft ID found');
+      return;
+    }
+    setSendingEmail(true);
+    try {
+      await draftsApi.send(draft.id);
+      toast.success('Email sent successfully! ✨');
+      setDraft(null);
+      setIsEditingDraft(false);
+    } catch {
+      toast.error('Failed to send email');
+    } finally {
+      setSendingEmail(false);
+    }
   };
 
   const sendEmail = async () => {
@@ -223,6 +280,9 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
                   emailId: email.id,
                 }).then((res) => {
                   setDraft(res.data);
+                  setEditTo(res.data.to || email.sender || email.fromAddress || '');
+                  setEditSubject(res.data.subject || `Re: ${email.subject}`);
+                  setEditBody(res.data.body || '');
                   toast.success('Draft created!');
                 }).catch(() => toast.error('Failed to create draft'));
               }}
@@ -240,38 +300,110 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
               animate={{ opacity: 1, height: 'auto' }}
               className="mt-5 space-y-3"
             >
-              <div
-                className="p-4 rounded-xl"
-                style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)' }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold" style={{ color: '#60a5fa' }}>
-                    Generated Draft
-                  </span>
-                  <button onClick={copyDraft} className="text-xs flex items-center gap-1" style={{ color: '#64748b' }}>
-                    {copied ? <CheckCheck className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copied ? 'Copied!' : 'Copy'}
-                  </button>
+              {isEditingDraft ? (
+                <div
+                  className="p-4 rounded-xl space-y-4"
+                  style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)' }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold" style={{ color: '#60a5fa' }}>
+                      Edit Draft
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: '#94a3b8' }}>To</label>
+                    <input
+                      type="text"
+                      value={editTo}
+                      onChange={(e) => setEditTo(e.target.value)}
+                      className="input-field w-full text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: '#94a3b8' }}>Subject</label>
+                    <input
+                      type="text"
+                      value={editSubject}
+                      onChange={(e) => setEditSubject(e.target.value)}
+                      className="input-field w-full text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: '#94a3b8' }}>Body</label>
+                    <textarea
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      className="input-field w-full text-sm font-sans"
+                      rows={8}
+                    />
+                  </div>
                 </div>
-                {draft.subject && (
-                  <p className="text-xs font-medium mb-2" style={{ color: '#94a3b8' }}>
-                    Subject: {draft.subject}
+              ) : (
+                <div
+                  className="p-4 rounded-xl"
+                  style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)' }}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold" style={{ color: '#60a5fa' }}>
+                      Generated Draft
+                    </span>
+                    <button onClick={copyDraft} className="text-xs flex items-center gap-1" style={{ color: '#64748b' }}>
+                      {copied ? <CheckCheck className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                  {draft.subject && (
+                    <p className="text-xs font-medium mb-2" style={{ color: '#94a3b8' }}>
+                      Subject: {draft.subject}
+                    </p>
+                  )}
+                  {draft.to && (
+                    <p className="text-xs font-medium mb-2" style={{ color: '#94a3b8' }}>
+                      To: {draft.to}
+                    </p>
+                  )}
+                  {/* Bug #5/#6 fix: draft body is plain text, display with whitespace-pre-wrap */}
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: '#cbd5e1' }}>
+                    {draft.body || (draft as any).signature || JSON.stringify(draft, null, 2)}
                   </p>
-                )}
-                {/* Bug #5/#6 fix: draft body is plain text, display with whitespace-pre-wrap */}
-                <p className="text-sm whitespace-pre-wrap" style={{ color: '#cbd5e1' }}>
-                  {draft.body || (draft as any).signature || JSON.stringify(draft, null, 2)}
-                </p>
-              </div>
+                </div>
+              )}
 
               <div className="flex gap-3">
-                <Button onClick={sendEmail} loading={sendingEmail} variant="primary">
-                  <Send className="w-4 h-4" />
-                  Send Email
-                </Button>
-                <Button onClick={() => setDraft(null)} variant="ghost">
-                  Discard
-                </Button>
+                {isEditingDraft ? (
+                  <>
+                    <Button onClick={saveDraft} loading={savingDraft} variant="primary">
+                      Save Draft
+                    </Button>
+                    <Button onClick={sendDraftEmail} loading={sendingEmail} variant="primary">
+                      <Send className="w-4 h-4" />
+                      Send Email
+                    </Button>
+                    <Button onClick={() => setIsEditingDraft(false)} variant="ghost">
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button onClick={() => setIsEditingDraft(true)} variant="ghost">
+                      Edit Draft
+                    </Button>
+                    {draft.id ? (
+                      <Button onClick={sendDraftEmail} loading={sendingEmail} variant="primary">
+                        <Send className="w-4 h-4" />
+                        Send Email
+                      </Button>
+                    ) : (
+                      <Button onClick={sendEmail} loading={sendingEmail} variant="primary">
+                        <Send className="w-4 h-4" />
+                        Send Email
+                      </Button>
+                    )}
+                    <Button onClick={() => setDraft(null)} variant="ghost">
+                      Discard
+                    </Button>
+                  </>
+                )}
               </div>
             </motion.div>
           )}

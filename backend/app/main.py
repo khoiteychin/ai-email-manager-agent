@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.services.firebase_service import init_firebase
-from app.routers import emails, ai, gmail, labels, user, discord, telegram
+from app.routers import emails, ai, gmail, labels, user, discord, telegram, drafts
 
 logging.basicConfig(
     level=logging.INFO if settings.ENVIRONMENT == "development" else logging.WARNING,
@@ -99,6 +99,10 @@ async def lifespan(app: FastAPI):
 
                                 # Classify with AI
                                 try:
+                                    import datetime
+                                    received_time = datetime.datetime.now(datetime.timezone.utc)
+                                    logger.info(f"Auto-sync: Email '{data.get('subject')}' received/synced at {received_time.isoformat()}")
+
                                     ai_result = await classify_and_summarize(
                                         email.id,
                                         data.get("subject", ""),
@@ -124,6 +128,8 @@ async def lifespan(app: FastAPI):
                                         try:
                                             from app.routers.discord import send_discord_notification
                                             await send_discord_notification(user_id, notification_msg, db)
+                                            notified_time = datetime.datetime.now(datetime.timezone.utc)
+                                            logger.info(f"Auto-sync: Discord notified for Email '{subject}' at {notified_time.isoformat()}. Delay: {(notified_time - received_time).total_seconds()}s")
                                         except Exception as discord_err:
                                             logger.warning(f"Auto-sync Discord notify failed: {discord_err}")
 
@@ -147,10 +153,10 @@ async def lifespan(app: FastAPI):
             except Exception as loop_err:
                 logger.error(f"Auto-sync loop error: {loop_err}")
 
-            await asyncio.sleep(2 * 60)  # Run every 2 minutes
+            await asyncio.sleep(90)  # Run every 90 seconds
 
     asyncio.create_task(_auto_sync_loop())
-    logger.info("✅ Gmail auto-sync fallback loop scheduled (every 2 min)")
+    logger.info("✅ Gmail auto-sync fallback loop scheduled (every 90s)")
 
     yield
     # Shutdown
@@ -199,6 +205,7 @@ app.include_router(labels.router)
 app.include_router(user.router)
 app.include_router(discord.router)
 app.include_router(telegram.router)
+app.include_router(drafts.router)
 
 
 # ─── Health check ───────────────────────────────────────────────

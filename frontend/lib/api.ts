@@ -138,6 +138,15 @@ export const aiApi = {
   getSessionHistory: (sessionId: string) => api.get(`/ai/sessions/history?sessionId=${sessionId}`),
   // Bug #7 fix: add deleteSession so chat UI can remove sessions
   deleteSession: (sessionId: string) => api.delete(`/ai/sessions/${sessionId}`),
+  deleteMessage: (messageId: string) => api.delete(`/ai/messages/${messageId}`),
+};
+
+// ─── Drafts APIs ──────────────────────────────────────────────
+export const draftsApi = {
+  save: (id: string, data: { to: string; subject: string; body: string }) =>
+    api.patch(`/drafts/${id}`, data),
+  send: (id: string) =>
+    api.post(`/drafts/${id}/send`),
 };
 
 // ─── Connect APIs ─────────────────────────────────────────────

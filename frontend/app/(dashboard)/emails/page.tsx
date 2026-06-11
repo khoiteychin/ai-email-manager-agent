@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { emailsApi } from '@/lib/api';
+import { emailsApi, userApi } from '@/lib/api';
 import { Card, CategoryBadge, PriorityDot, Spinner, EmptyState } from '@/components/ui';
 import {
   Mail,
@@ -20,7 +20,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 
-const CATEGORIES = ['All', 'Work', 'Personal', 'Ads', 'Invoice', 'Social'];
+const CATEGORIES = ['All', 'Work', 'Personal', 'Social', 'Ads', 'Invoice', 'Promotion', 'Security'];
 
 // Bug #2 fix: Updated interface to match backend _email_to_dict() fields
 interface Email {
@@ -40,6 +40,7 @@ interface Email {
 export default function EmailsPage() {
   const [emails, setEmails] = useState<Email[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, totalPages: 1 });
+  const [stats, setStats] = useState<{ categoryBreakdown: Array<{ category: string; count: number }> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
@@ -52,6 +53,15 @@ export default function EmailsPage() {
   const [newEmailBanner, setNewEmailBanner] = useState<{ count: number; emails: Array<{ subject: string; sender: string }> } | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
+  const fetchStats = async () => {
+    try {
+      const res = await userApi.getStats();
+      setStats(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const fetchEmails = useCallback(async () => {
     setLoading(true);
     try {
@@ -59,7 +69,7 @@ export default function EmailsPage() {
         page,
         limit: 20,
         search: search || undefined,
-        category: category !== 'All' ? category : undefined,
+        category: category !== 'All' ? category.toLowerCase() : undefined,
       });
       setEmails(res.data.data);
       setMeta(res.data.meta);
@@ -67,6 +77,7 @@ export default function EmailsPage() {
       setLastFetchTime(now);
       setLastRefresh(new Date());
       setNewEmailBanner(null); // Clear banner after reload
+      fetchStats();
     } catch (err) {
       console.error(err);
     } finally {
@@ -221,20 +232,38 @@ export default function EmailsPage() {
 
         <div className="flex items-center gap-1 flex-wrap">
           <Filter className="w-3.5 h-3.5 mr-1" style={{ color: '#64748b' }} />
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => { setCategory(cat); setPage(1); }}
-              className="px-3 py-1 rounded-full text-xs font-medium transition-all duration-200"
-              style={{
-                background: category === cat ? 'rgba(59,130,246,0.2)' : 'rgba(14,22,41,0.5)',
-                border: `1px solid ${category === cat ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)'}`,
-                color: category === cat ? '#60a5fa' : '#64748b',
-              }}
-            >
-              {cat}
-            </button>
-          ))}
+          {(() => {
+            const getCategoryCount = (cat: string) => {
+              if (cat === 'All') return meta.total || 0;
+              const item = stats?.categoryBreakdown?.find(
+                (b) => b.category.toLowerCase() === cat.toLowerCase()
+              );
+              return item ? item.count : 0;
+            };
+            return CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => { setCategory(cat); setPage(1); }}
+                className="px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1.5"
+                style={{
+                  background: category === cat ? 'rgba(59,130,246,0.2)' : 'rgba(14,22,41,0.5)',
+                  border: `1px solid ${category === cat ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)'}`,
+                  color: category === cat ? '#60a5fa' : '#64748b',
+                }}
+              >
+                <span>{cat}</span>
+                <span
+                  className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                  style={{
+                    background: category === cat ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.05)',
+                    color: category === cat ? '#93c5fd' : '#475569',
+                  }}
+                >
+                  {getCategoryCount(cat)}
+                </span>
+              </button>
+            ));
+          })()}
         </div>
       </div>
 

@@ -85,3 +85,15 @@ async def delete_session(
         raise HTTPException(status_code=404, detail="Session not found")
     return {"success": True}
 
+
+@router.delete("/messages/{message_id}")
+async def delete_message(
+    message_id: str,
+    current_user: AuthUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    deleted = await ai_service.delete_chat_message(current_user.uid, message_id, db)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Message not found")
+    return {"success": True}
+

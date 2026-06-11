@@ -311,7 +311,7 @@ async def store_embedding(email_id: str, embedding: list[float], db: AsyncSessio
     vector_str = f"[{','.join(str(x) for x in embedding)}]"
     await db.execute(
         text("""INSERT INTO email_embeddings (email_id, embedding)
-               VALUES (:email_id, :embedding::vector)
+               VALUES (:email_id, CAST(:embedding AS vector))
                ON CONFLICT (email_id) DO UPDATE SET embedding = EXCLUDED.embedding"""),
         {"email_id": email_id, "embedding": vector_str},
     )

@@ -423,7 +423,7 @@ export default function ChatPage() {
           style={{ borderColor: 'rgba(59,130,246,0.1)', background: 'rgba(10,15,30,0.8)' }}
         >
           <div
-            className="flex items-end gap-3 rounded-2xl px-4 py-3"
+            className="flex items-center gap-3 rounded-2xl px-4 py-3"
             style={{
               background: 'rgba(14,22,41,0.9)',
               border: '1px solid rgba(59,130,246,0.2)',

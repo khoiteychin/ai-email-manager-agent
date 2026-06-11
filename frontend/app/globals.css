@@ -19,6 +19,28 @@
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
+  
+  --bg-sidebar: rgba(10, 15, 30, 0.95);
+  --text-sidebar-logo: #ffffff;
+  --text-sidebar-user: #ffffff;
+}
+
+html.light {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-elevated: #e2e8f0;
+  --border: rgba(59, 130, 246, 0.08);
+  --border-hover: rgba(59, 130, 246, 0.2);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --accent: #3b82f6;
+  --accent-glow: rgba(59, 130, 246, 0.08);
+  
+  --bg-sidebar: #ffffff;
+  --text-sidebar-logo: #0f172a;
+  --text-sidebar-user: #0f172a;
 }
 
 /* ─── Base Styles ────────────────────────────────────────────── */

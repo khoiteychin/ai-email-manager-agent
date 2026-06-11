@@ -194,16 +194,16 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-full" style={{ background: '#050914' }}>
+    <div className="flex h-full" style={{ background: 'var(--bg-primary)' }}>
       {/* Sessions sidebar */}
       <div
         className="w-64 flex flex-col border-r"
         style={{
-          background: 'rgba(10,15,30,0.9)',
-          borderColor: 'rgba(59,130,246,0.1)',
+          background: 'var(--bg-secondary)',
+          borderColor: 'var(--border)',
         }}
       >
-        <div className="p-4 border-b" style={{ borderColor: 'rgba(59,130,246,0.1)' }}>
+        <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
           <button
             onClick={newChat}
             className="w-full btn-ghost justify-center gap-2 text-sm"

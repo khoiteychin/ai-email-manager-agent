@@ -18,10 +18,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#050914' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary)' }}>
         <div className="text-center space-y-3">
           <Spinner className="mx-auto" />
-          <p className="text-sm" style={{ color: '#64748b' }}>Loading...</p>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Loading...</p>
         </div>
       </div>
     );
@@ -30,7 +30,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#050914' }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg-primary)' }}>
       <Sidebar />
       <main className="flex-1 overflow-auto">
         {children}

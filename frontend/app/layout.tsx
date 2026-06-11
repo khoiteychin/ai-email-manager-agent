@@ -16,20 +16,31 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <script dangerouslySetInnerHTML={{ __html: `
+          try {
+            if (localStorage.theme === 'light' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+              document.documentElement.classList.add('light');
+              document.documentElement.classList.remove('dark');
+            } else {
+              document.documentElement.classList.add('dark');
+              document.documentElement.classList.remove('light');
+            }
+          } catch (_) {}
+        `}} />
       </head>
-      <body className={inter.className} style={{ background: '#050914' }}>
+      <body className={inter.className} style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
         <AuthProvider>
           <Toaster
             position="top-right"
             toastOptions={{
               style: {
-                background: '#0E1629',
-                color: '#e2e8f0',
-                border: '1px solid rgba(59,130,246,0.2)',
+                background: 'var(--bg-card)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border)',
                 borderRadius: '12px',
               },
             }}

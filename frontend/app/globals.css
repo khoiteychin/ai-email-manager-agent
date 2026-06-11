@@ -26,24 +26,45 @@
 }
 
 html.light {
-  --bg-primary: #f8fafc; /* slate-50 */
-  --bg-secondary: #f1f5f9; /* slate-100 */
-  --bg-card: #ffffff; /* white */
-  --bg-elevated: #e2e8f0; /* slate-200 */
-  --border: #e2e8f0; /* slate-200 */
-  --border-hover: #cbd5e1; /* slate-300 */
-  --text-primary: #0f172a; /* slate-900 */
-  --text-secondary: #64748b; /* slate-500 */
-  --text-muted: #94a3b8; /* slate-400 */
-  --accent: #2563eb; /* blue-600 */
-  --accent-glow: rgba(37, 99, 235, 0.08);
-  --success: #059669; /* emerald-600 */
-  --warning: #f59e0b; /* amber-500 */
-  --danger: #ef4444; /* red-500 */
+  --bg-primary: #f5f8f3; /* background */
+  --bg-secondary: #ebefe8;
+  --bg-card: #ffffff;
+  --bg-elevated: #e0e6db;
+  --border: #d0d9cd;
+  --border-hover: #b7a9ce; /* secondary */
+  --text-primary: #090d08; /* text */
+  --text-secondary: #596157;
+  --text-muted: #8c968a;
+  --accent: #77a663; /* primary */
+  --accent-glow: rgba(119, 166, 99, 0.1);
+  --success: #77a663;
+  --warning: #bb89a7; /* accent */
+  --danger: #ef4444;
   
-  --bg-sidebar: #ffffff;
-  --text-sidebar-logo: #0f172a;
-  --text-sidebar-user: #0f172a;
+  --bg-sidebar: #ebefe8;
+  --text-sidebar-logo: #090d08;
+  --text-sidebar-user: #090d08;
+}
+
+html.dark {
+  --bg-primary: #050914;
+  --bg-secondary: #0A0F1E;
+  --bg-card: #0E1629;
+  --bg-elevated: #131d36;
+  --border: rgba(59, 130, 246, 0.12);
+  --border-hover: rgba(59, 130, 246, 0.3);
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --accent: #3b82f6;
+  --accent-glow: rgba(59, 130, 246, 0.15);
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  
+  --bg-sidebar: rgba(10, 15, 30, 0.95);
+  --text-sidebar-logo: #ffffff;
+  --text-sidebar-user: #ffffff;
 }
 
 /* ─── Base Styles ────────────────────────────────────────────── */

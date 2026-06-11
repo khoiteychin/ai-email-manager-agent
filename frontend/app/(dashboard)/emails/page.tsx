@@ -155,7 +155,7 @@ export default function EmailsPage() {
             <Mail className="w-6 h-6 text-blue-400" />
             Emails
           </h1>
-          <p className="text-sm mt-1" style={{ color: '#64748b' }}>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
             {meta.total} emails total
             {lastRefresh && (
               <span className="ml-2">
@@ -171,9 +171,9 @@ export default function EmailsPage() {
           disabled={syncing}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 disabled:opacity-50"
           style={{
-            background: 'rgba(59,130,246,0.1)',
-            border: '1px solid rgba(59,130,246,0.2)',
-            color: '#60a5fa',
+            background: 'var(--accent-glow)',
+            border: '1px solid var(--border)',
+            color: 'var(--accent)',
           }}
         >
           <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
@@ -194,24 +194,24 @@ export default function EmailsPage() {
               onClick={loadNewEmails}
               className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:brightness-110"
               style={{
-                background: 'linear-gradient(90deg, rgba(59,130,246,0.15), rgba(99,102,241,0.15))',
-                border: '1px solid rgba(59,130,246,0.3)',
-                color: '#93c5fd',
+                background: 'var(--theme-gradient)',
+                border: '1px solid var(--border)',
+                color: 'white',
               }}
             >
               <div className="flex items-center gap-2">
-                <Bell className="w-4 h-4 text-blue-400 animate-pulse" />
+                <Bell className="w-4 h-4 text-white animate-pulse" />
                 <span>
                   {newEmailBanner.count} new email{newEmailBanner.count > 1 ? 's' : ''} arrived
                   {newEmailBanner.emails.length > 0 && (
-                    <span style={{ color: '#64748b' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.7)' }}>
                       {' '}– {newEmailBanner.emails[0].subject}
                       {newEmailBanner.count > 1 && ` +${newEmailBanner.count - 1} more`}
                     </span>
                   )}
                 </span>
               </div>
-              <span className="text-xs underline">Load now →</span>
+              <span className="text-xs underline text-white">Load now →</span>
             </button>
           </motion.div>
         )}
@@ -220,7 +220,7 @@ export default function EmailsPage() {
       {/* Filters */}
       <div className="glass p-4 space-y-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: '#475569' }} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-muted)' }} />
           <input
             type="text"
             placeholder="Search emails..."
@@ -231,7 +231,7 @@ export default function EmailsPage() {
         </div>
 
         <div className="flex items-center gap-1 flex-wrap">
-          <Filter className="w-3.5 h-3.5 mr-1" style={{ color: '#64748b' }} />
+          <Filter className="w-3.5 h-3.5 mr-1" style={{ color: 'var(--text-secondary)' }} />
           {(() => {
             const getCategoryCount = (cat: string) => {
               if (cat === 'All') return meta.total || 0;
@@ -246,17 +246,17 @@ export default function EmailsPage() {
                 onClick={() => { setCategory(cat); setPage(1); }}
                 className="px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1.5"
                 style={{
-                  background: category === cat ? 'rgba(59,130,246,0.2)' : 'rgba(14,22,41,0.5)',
-                  border: `1px solid ${category === cat ? 'rgba(59,130,246,0.4)' : 'rgba(59,130,246,0.1)'}`,
-                  color: category === cat ? '#60a5fa' : '#64748b',
+                  background: category === cat ? 'var(--accent-glow)' : 'var(--bg-secondary)',
+                  border: `1px solid ${category === cat ? 'var(--accent)' : 'var(--border)'}`,
+                  color: category === cat ? 'var(--accent)' : 'var(--text-secondary)',
                 }}
               >
                 <span>{cat}</span>
                 <span
                   className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
                   style={{
-                    background: category === cat ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.05)',
-                    color: category === cat ? '#93c5fd' : '#475569',
+                    background: category === cat ? 'var(--accent)' : 'var(--bg-elevated)',
+                    color: category === cat ? 'white' : 'var(--text-muted)',
                   }}
                 >
                   {getCategoryCount(cat)}
@@ -297,8 +297,8 @@ export default function EmailsPage() {
                     <div className="mt-1.5 flex-shrink-0">
                       <Circle
                         className="w-2 h-2"
-                        fill={email.isRead ? 'transparent' : '#3b82f6'}
-                        style={{ color: email.isRead ? '#1e2d4a' : '#3b82f6' }}
+                        fill={email.isRead ? 'transparent' : 'var(--accent)'}
+                        style={{ color: email.isRead ? 'var(--border)' : 'var(--accent)' }}
                       />
                     </div>
 
@@ -306,27 +306,27 @@ export default function EmailsPage() {
                       <div className="flex items-center gap-2 mb-1">
                         <span
                           className="text-sm font-semibold truncate flex-1"
-                          style={{ color: email.isRead ? '#94a3b8' : '#e2e8f0' }}
+                          style={{ color: email.isRead ? 'var(--text-muted)' : 'var(--text-primary)' }}
                         >
                           {email.subject || '(No subject)'}
                         </span>
-                        <span className="text-xs flex-shrink-0" style={{ color: '#475569' }}>
+                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
                           {email.receivedAt
                             ? formatDistanceToNow(new Date(email.receivedAt), { addSuffix: true })
                             : '—'}
                         </span>
                       </div>
 
-                      <div className="text-xs mb-2" style={{ color: '#64748b' }}>
+                      <div className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
                         From: {email.sender || email.fromAddress || 'Unknown'}
                       </div>
 
                       {email.summary ? (
-                        <p className="text-xs line-clamp-2 mb-2" style={{ color: '#94a3b8' }}>
+                        <p className="text-xs line-clamp-2 mb-2" style={{ color: 'var(--text-secondary)' }}>
                           📝 {email.summary}
                         </p>
                       ) : email.bodyPreview ? (
-                        <p className="text-xs line-clamp-2 mb-2" style={{ color: '#64748b' }}>
+                        <p className="text-xs line-clamp-2 mb-2" style={{ color: 'var(--text-muted)' }}>
                           {email.bodyPreview}
                         </p>
                       ) : null}

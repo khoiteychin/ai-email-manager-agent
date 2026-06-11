@@ -88,35 +88,35 @@ function DiscordPanel({
   return (
     <div
       className="rounded-xl overflow-hidden"
-      style={{ background: 'rgba(14,22,41,0.6)', border: '1px solid rgba(88,101,242,0.15)' }}
+      style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
     >
       {/* Main row */}
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: isConnected ? 'rgba(16,185,129,0.15)' : 'rgba(88,101,242,0.15)' }}
+            style={{ background: isConnected ? 'rgba(16,185,129,0.15)' : 'var(--accent-glow)' }}
           >
             <MessageSquare
               className="w-5 h-5"
-              style={{ color: isConnected ? '#10b981' : '#5865f2' }}
+              style={{ color: isConnected ? 'var(--success)' : 'var(--accent)' }}
             />
           </div>
           <div>
-            <div className="text-sm font-medium text-white flex items-center gap-2">
+            <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
               Discord
               {isConnected && channelId && (
-                <span className="text-xs px-1.5 py-0.5 rounded-md font-medium" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                <span className="text-xs px-1.5 py-0.5 rounded-md font-medium" style={{ background: 'rgba(16,185,129,0.15)', color: 'var(--success)' }}>
                   Bot Connected ✓
                 </span>
               )}
               {isConnected && !channelId && (
-                <span className="text-xs px-1.5 py-0.5 rounded-md font-medium" style={{ background: 'rgba(234,179,8,0.15)', color: '#eab308' }}>
+                <span className="text-xs px-1.5 py-0.5 rounded-md font-medium" style={{ background: 'rgba(234,179,8,0.15)', color: 'var(--warning)' }}>
                   Awaiting Bot Ping
                 </span>
               )}
             </div>
-            <div className="text-xs mt-0.5" style={{ color: '#64748b' }}>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
               {isConnected
                 ? 'Receive email notifications via Discord bot'
                 : 'Not connected — Receive notifications & chat with AI'}
@@ -130,7 +130,8 @@ function DiscordPanel({
               <CheckCircle2 className="w-4 h-4 text-green-400" />
               <button
                 onClick={() => setExpanded((v) => !v)}
-                className="p-1.5 rounded-lg transition-colors text-slate-400 hover:text-white hover:bg-white/5"
+                className="p-1.5 rounded-lg transition-colors"
+                style={{ color: 'var(--text-secondary)' }}
                 title="Configure"
               >
                 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -147,7 +148,7 @@ function DiscordPanel({
           ) : (
             <button
               onClick={onConnect}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm"
+              className="btn-primary px-4 py-2"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               Connect
@@ -166,16 +167,16 @@ function DiscordPanel({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 space-y-4 border-t" style={{ borderColor: 'rgba(88,101,242,0.1)' }}>
+            <div className="px-4 pb-4 space-y-4 border-t" style={{ borderColor: 'var(--border)' }}>
               <div className="pt-4">
                 <div
                   className="rounded-xl p-4 space-y-3"
-                  style={{ background: 'rgba(88,101,242,0.08)', border: '1px solid rgba(88,101,242,0.15)' }}
+                  style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
                 >
                   <div className="flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#eab308' }} />
-                    <div className="text-xs" style={{ color: '#94a3b8' }}>
-                      <p className="font-medium text-yellow-400 mb-1">Link your Channel ID via Discord Bot</p>
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: 'var(--warning)' }} />
+                    <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                      <p className="font-medium text-yellow-500 mb-1">Link your Channel ID via Discord Bot</p>
                       <p className="mb-2">1. Add <strong>ktcbot</strong> to your server.</p>
                       <p className="mb-2">2. Type <strong>@ktcbot Xin chào</strong> in the channel where you want to receive notifications.</p>
                       <p>3. The bot will automatically link that channel to your account!</p>
@@ -183,11 +184,11 @@ function DiscordPanel({
                   </div>
 
                   {channelId ? (
-                    <div className="text-sm font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-lg">
+                    <div className="text-sm font-medium text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-lg">
                       Linked Channel ID: <code className="bg-slate-900/60 px-1.5 py-0.5 rounded text-white">{channelId}</code>
                     </div>
                   ) : (
-                    <div className="text-sm font-medium text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 p-2.5 rounded-lg">
+                    <div className="text-sm font-medium text-yellow-500 bg-yellow-500/10 border border-yellow-500/20 p-2.5 rounded-lg">
                       Status: Waiting for bot message...
                     </div>
                   )}
@@ -197,7 +198,7 @@ function DiscordPanel({
                       onClick={fetchStatus}
                       disabled={refreshing}
                       className="px-4 py-2 rounded-lg text-sm font-medium transition-colors border"
-                      style={{ background: 'transparent', borderColor: 'rgba(255,255,255,0.15)', color: '#94a3b8' }}
+                      style={{ background: 'transparent', borderColor: 'var(--border)', color: 'var(--text-secondary)' }}
                     >
                       {refreshing ? 'Refreshing...' : 'Refresh Status'}
                     </button>
@@ -207,7 +208,7 @@ function DiscordPanel({
                         onClick={handleTest}
                         disabled={testing}
                         className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                        style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)' }}
+                        style={{ background: 'rgba(16,185,129,0.1)', color: 'var(--success)', border: '1px solid var(--success)' }}
                       >
                         {testing ? (
                           <span className="w-3.5 h-3.5 border-2 border-emerald-300/30 border-t-emerald-300 rounded-full animate-spin" />
@@ -327,8 +328,8 @@ function SettingsContent() {
     <div className="p-8 max-w-3xl mx-auto space-y-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
-        <p className="text-sm mt-1" style={{ color: '#64748b' }}>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Settings</h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
           Manage your account and integrations
         </p>
       </motion.div>
@@ -336,20 +337,20 @@ function SettingsContent() {
       {/* Profile */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
         <Card className="p-6">
-          <h2 className="text-base font-semibold text-white flex items-center gap-2 mb-5">
-            <User className="w-4 h-4 text-blue-400" />
+          <h2 className="text-base font-semibold flex items-center gap-2 mb-4" style={{ color: 'var(--text-primary)' }}>
+            <User className="w-4 h-4" style={{ color: 'var(--accent)' }} />
             Profile
           </h2>
           <div className="flex items-center gap-4">
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold text-white"
-              style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
+              style={{ background: 'var(--theme-gradient)' }}
             >
               {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
             </div>
             <div>
-              <div className="text-base font-semibold text-white">{user?.name || '—'}</div>
-              <div className="text-sm" style={{ color: '#64748b' }}>{user?.email}</div>
+              <div className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>{user?.name || '—'}</div>
+              <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>{user?.email}</div>
             </div>
           </div>
         </Card>
@@ -358,8 +359,8 @@ function SettingsContent() {
       {/* Integrations */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
         <Card className="p-6">
-          <h2 className="text-base font-semibold text-white flex items-center gap-2 mb-5">
-            <Bell className="w-4 h-4 text-blue-400" />
+          <h2 className="text-base font-semibold flex items-center gap-2 mb-5" style={{ color: 'var(--text-primary)' }}>
+            <Bell className="w-4 h-4" style={{ color: 'var(--accent)' }} />
             Connected Accounts
           </h2>
 
@@ -367,21 +368,23 @@ function SettingsContent() {
             {/* Gmail */}
             <div
               className="flex items-center justify-between p-4 rounded-xl"
-              style={{ background: 'rgba(14,22,41,0.6)', border: '1px solid rgba(59,130,246,0.15)' }}
+              style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
             >
               <div className="flex items-center gap-3">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center"
-                  style={{ background: gmailAccount ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.1)' }}
+                  style={{ background: gmailAccount ? 'rgba(16,185,129,0.15)' : 'var(--accent-glow)' }}
                 >
                   <Mail
                     className="w-5 h-5"
-                    style={{ color: gmailAccount ? '#10b981' : '#3b82f6' }}
+                    style={{ color: gmailAccount ? 'var(--success)' : 'var(--accent)' }}
                   />
                 </div>
                 <div>
-                  <div className="text-sm font-medium text-white">Gmail</div>
-                  <div className="text-xs mt-0.5" style={{ color: '#64748b' }}>
+                  <div className="text-sm font-medium flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                    Gmail
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
                     {gmailAccount
                       ? `${gmailAccount.metadata?.email || user?.email || 'Connected'} — Read, send & manage emails`
                       : 'Not connected — Read, send & manage emails'}
@@ -405,7 +408,7 @@ function SettingsContent() {
                   <button
                     onClick={() => handleConnect('gmail')}
                     disabled={!user?.id}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn-primary px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     Connect
@@ -430,8 +433,8 @@ function SettingsContent() {
       {/* Security info */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
         <Card className="p-6">
-          <h2 className="text-base font-semibold text-white flex items-center gap-2 mb-4">
-            <Shield className="w-4 h-4 text-blue-400" />
+          <h2 className="text-base font-semibold flex items-center gap-2 mb-4" style={{ color: 'var(--text-primary)' }}>
+            <Shield className="w-4 h-4" style={{ color: 'var(--accent)' }} />
             Security
           </h2>
           <div className="space-y-3">
@@ -442,9 +445,9 @@ function SettingsContent() {
               { label: 'HTTPS', value: 'HSTS enforced (Let\'s Encrypt SSL)', ok: true },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between text-sm">
-                <span style={{ color: '#94a3b8' }}>{item.label}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
                 <div className="flex items-center gap-2">
-                  <span style={{ color: '#64748b' }}>{item.value}</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{item.value}</span>
                   {item.ok ? (
                     <CheckCircle2 className="w-4 h-4 text-green-400" />
                   ) : (

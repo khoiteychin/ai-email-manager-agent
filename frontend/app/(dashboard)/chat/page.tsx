@@ -326,17 +326,19 @@ export default function ChatPage() {
                     onClick={() => sendMessage(suggestion)}
                     className="p-3 rounded-xl text-left text-sm transition-all duration-200"
                     style={{
-                      background: 'rgba(14,22,41,0.8)',
-                      border: '1px solid rgba(59,130,246,0.15)',
-                      color: '#94a3b8',
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-secondary)',
                     }}
                     onMouseOver={(e) => {
-                      e.currentTarget.style.borderColor = 'rgba(59,130,246,0.35)';
-                      e.currentTarget.style.color = '#e2e8f0';
+                      e.currentTarget.style.borderColor = 'var(--accent)';
+                      e.currentTarget.style.color = 'var(--text-primary)';
+                      e.currentTarget.style.boxShadow = '0 0 12px var(--accent-glow)';
                     }}
                     onMouseOut={(e) => {
-                      e.currentTarget.style.borderColor = 'rgba(59,130,246,0.15)';
-                      e.currentTarget.style.color = '#94a3b8';
+                      e.currentTarget.style.borderColor = 'var(--border)';
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                      e.currentTarget.style.boxShadow = 'none';
                     }}
                   >
                     {suggestion}

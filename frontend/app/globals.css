@@ -24,6 +24,7 @@
   --text-sidebar-logo: rgb(255, 229, 240);
   --text-sidebar-user: rgb(255, 229, 240);
   --theme-gradient: linear-gradient(135deg, rgb(253, 109, 174), rgb(180, 20, 120));
+  --bg-glass: rgba(48, 4, 26, 0.7);
 }
 
 html.light {
@@ -46,6 +47,7 @@ html.light {
   --text-sidebar-logo: rgb(26, 0, 11);
   --text-sidebar-user: rgb(26, 0, 11);
   --theme-gradient: linear-gradient(135deg, rgb(146, 2, 67), rgb(200, 30, 110));
+  --bg-glass: rgba(255, 255, 255, 0.65);
 }
 
 html.dark {
@@ -68,6 +70,7 @@ html.dark {
   --text-sidebar-logo: rgb(255, 229, 240);
   --text-sidebar-user: rgb(255, 229, 240);
   --theme-gradient: linear-gradient(135deg, rgb(253, 109, 174), rgb(180, 20, 120));
+  --bg-glass: rgba(48, 4, 26, 0.7);
 }
 
 /* ─── Base Styles ────────────────────────────────────────────── */
@@ -108,7 +111,7 @@ body {
 @layer components {
   /* Glass card */
   .glass {
-    background: rgba(14, 22, 41, 0.7);
+    background: var(--bg-glass);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--border);
@@ -154,13 +157,13 @@ body {
   .btn-ghost:hover {
     border-color: var(--border-hover);
     color: var(--text-primary);
-    background: rgba(59, 130, 246, 0.08);
+    background: var(--accent-glow);
   }
 
   /* Input */
   .input-field {
     @apply w-full px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200;
-    background: rgba(14, 22, 41, 0.8);
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
     color: var(--text-primary);
   }

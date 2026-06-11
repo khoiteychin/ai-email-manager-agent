@@ -4,7 +4,7 @@ import { clsx } from 'clsx';
 const CATEGORY_CLASSES: Record<string, string> = {
   work: 'badge-work',
   personal: 'badge-personal',
-  ads: 'badge-ads',
+  ads: 'badge-promotion',
   invoice: 'badge-invoice',
   social: 'badge-social',
   promotion: 'badge-promotion',

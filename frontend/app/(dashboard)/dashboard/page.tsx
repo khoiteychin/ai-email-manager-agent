@@ -39,7 +39,6 @@ interface Stats {
 const CATEGORY_COLORS: Record<string, string> = {
   work: '#3b82f6',
   personal: '#10b981',
-  ads: '#f59e0b',
   invoice: '#a855f7',
   social: '#ec4899',
   promotion: '#ef4444',

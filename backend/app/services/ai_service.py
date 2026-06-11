@@ -278,7 +278,7 @@ Body: {body_text[:2000]}
 
 Return JSON with:
 {{
-  "category": "one of: work, personal, social, ads, invoice, promotion, security",
+  "category": "one of: work, personal, social, invoice, promotion, security",
   "priority": "one of: low, medium, high",
   "sentiment": "one of: positive, neutral, negative",
   "summary": "2-3 sentence summary"
@@ -294,9 +294,11 @@ Return JSON with:
         result = json.loads(completion.choices[0].message.content or "{}")
 
         # Canonical normalization
-        valid_categories = {"work", "personal", "social", "ads", "invoice", "promotion", "security"}
+        valid_categories = {"work", "personal", "social", "invoice", "promotion", "security"}
         category = result.get("category", "personal").lower()
-        if category not in valid_categories:
+        if category == "ads":
+            category = "promotion"
+        elif category not in valid_categories:
             category = "personal"
 
         await db.execute(

@@ -20,7 +20,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 
-const CATEGORIES = ['All', 'Work', 'Personal', 'Social', 'Ads', 'Invoice', 'Promotion', 'Security'];
+const CATEGORIES = ['All', 'Work', 'Personal', 'Social', 'Invoice', 'Promotion', 'Security'];
 
 // Bug #2 fix: Updated interface to match backend _email_to_dict() fields
 interface Email {

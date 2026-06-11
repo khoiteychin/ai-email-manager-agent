@@ -387,14 +387,17 @@ async def create_draft(user_id: str, db: AsyncSession, to: str, subject: str, bo
     account = result.scalar_one_or_none()
     from_email = account.email if account else "me"
 
-    raw_email = "\n".join([
-        f"From: {from_email}",
-        f"To: {to}",
-        f"Subject: {subject}",
+    headers = [f"From: {from_email}"]
+    if to:
+        headers.append(f"To: {to}")
+    if subject:
+        headers.append(f"Subject: {subject}")
+    headers.extend([
         "Content-Type: text/html; charset=utf-8",
         "",
         body,
     ])
+    raw_email = "\n".join(headers)
 
     encoded = base64.urlsafe_b64encode(raw_email.encode("utf-8")).decode("utf-8")
     draft = service.users().drafts().create(
@@ -549,14 +552,17 @@ async def update_draft(user_id: str, db: AsyncSession, draft_id: str, to: str, s
     account = result.scalar_one_or_none()
     from_email = account.email if account else "me"
 
-    raw_email = "\n".join([
-        f"From: {from_email}",
-        f"To: {to}",
-        f"Subject: {subject}",
+    headers = [f"From: {from_email}"]
+    if to:
+        headers.append(f"To: {to}")
+    if subject:
+        headers.append(f"Subject: {subject}")
+    headers.extend([
         "Content-Type: text/html; charset=utf-8",
         "",
         body,
     ])
+    raw_email = "\n".join(headers)
 
     encoded = base64.urlsafe_b64encode(raw_email.encode("utf-8")).decode("utf-8")
     service.users().drafts().update(

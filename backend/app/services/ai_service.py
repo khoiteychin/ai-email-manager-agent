@@ -163,6 +163,15 @@ Return a JSON object with:
     except Exception:
         draft_content = {"subject": "", "body": completion.choices[0].message.content or "", "to": ""}
 
+    # Fallback to original email sender if 'to' is empty
+    if email_id and not draft_content.get("to"):
+        result = await db.execute(
+            select(Email).where(Email.id == email_id, Email.user_id == user_id)
+        )
+        email = result.scalar_one_or_none()
+        if email:
+            draft_content["to"] = email.sender_email or email.sender or ""
+
     draft_id = None
     try:
         html_body = draft_content.get("body", "")

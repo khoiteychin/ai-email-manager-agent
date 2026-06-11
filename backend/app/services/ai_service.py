@@ -488,7 +488,7 @@ def format_discord_notification(email, ai_result) -> str:
             received_at = received_at.replace(tzinfo=timezone.utc)
         vn_tz = timezone(timedelta(hours=7))
         vn_time = received_at.astimezone(vn_tz)
-        date_str = vn_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        date_str = vn_time.strftime("%H:%M - %d/%m/%Y")
     else:
         date_str = "N/A"
 

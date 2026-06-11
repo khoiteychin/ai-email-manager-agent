@@ -62,7 +62,7 @@ export default function Sidebar() {
         <div className="flex items-center gap-3">
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
+            style={{ background: 'var(--theme-gradient)' }}
           >
             <Zap className="w-5 h-5 text-white" />
           </div>
@@ -130,7 +130,7 @@ export default function Sidebar() {
         <div className="flex items-center gap-3 mb-3 px-2">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
-            style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
+            style={{ background: 'var(--theme-gradient)' }}
           >
             {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
           </div>

@@ -281,17 +281,17 @@ export default function ChatPage() {
         {/* Header */}
         <div
           className="px-6 py-4 border-b flex items-center gap-3"
-          style={{ borderColor: 'rgba(59,130,246,0.1)', background: 'rgba(10,15,30,0.5)' }}
+          style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}
         >
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
+            style={{ background: 'var(--theme-gradient)' }}
           >
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-white">AI Email Assistant</div>
-            <div className="text-xs" style={{ color: '#64748b' }}>
+            <div className="text-sm font-semibold">AI Email Assistant</div>
+            <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               Powered by your AI Email Assistant
             </div>
           </div>
@@ -307,13 +307,13 @@ export default function ChatPage() {
             >
               <div
                 className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
+                style={{ background: 'var(--theme-gradient)' }}
               >
                 <Bot className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white mb-2">How can I help you?</h2>
-                <p className="text-sm" style={{ color: '#64748b' }}>
+                <h2 className="text-xl font-bold mb-2">How can I help you?</h2>
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                   Ask me anything about your emails
                 </p>
               </div>
@@ -358,10 +358,7 @@ export default function ChatPage() {
                 <div
                   className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
                   style={{
-                    background:
-                      message.role === 'user'
-                        ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
-                        : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                    background: 'var(--theme-gradient)',
                   }}
                 >
                   {message.role === 'user' ? (
@@ -377,13 +374,13 @@ export default function ChatPage() {
                   style={{
                     background:
                       message.role === 'user'
-                        ? 'rgba(59,130,246,0.15)'
-                        : 'rgba(14,22,41,0.8)',
+                        ? 'var(--accent-glow)'
+                        : 'var(--bg-secondary)',
                     border: `1px solid ${message.role === 'user'
-                        ? 'rgba(59,130,246,0.3)'
-                        : 'rgba(59,130,246,0.1)'
+                        ? 'var(--accent)'
+                        : 'var(--border)'
                       }`,
-                    color: '#e2e8f0',
+                    color: 'var(--text-primary)',
                     borderRadius:
                       message.role === 'user'
                         ? '20px 20px 4px 20px'
@@ -422,15 +419,15 @@ export default function ChatPage() {
             >
               <div
                 className="w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}
+                style={{ background: 'var(--theme-gradient)' }}
               >
                 <Bot className="w-4 h-4 text-white" />
               </div>
               <div
                 className="px-4 py-3 rounded-2xl flex items-center gap-2"
                 style={{
-                  background: 'rgba(14,22,41,0.8)',
-                  border: '1px solid rgba(59,130,246,0.1)',
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border)',
                   borderRadius: '20px 20px 20px 4px',
                 }}
               >
@@ -449,13 +446,13 @@ export default function ChatPage() {
         {/* Input area */}
         <div
           className="px-6 py-4 border-t"
-          style={{ borderColor: 'rgba(59,130,246,0.1)', background: 'rgba(10,15,30,0.8)' }}
+          style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)' }}
         >
           <div
             className="flex items-center gap-3 rounded-2xl px-4 py-3"
             style={{
-              background: 'rgba(14,22,41,0.9)',
-              border: '1px solid rgba(59,130,246,0.2)',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
             }}
           >
             <textarea
@@ -471,8 +468,8 @@ export default function ChatPage() {
               rows={1}
               className="flex-1 bg-transparent outline-none resize-none text-sm"
               style={{
-                color: '#e2e8f0',
-                caretColor: '#60a5fa',
+                color: 'var(--text-primary)',
+                caretColor: 'var(--accent)',
                 maxHeight: '160px',
               }}
             />
@@ -482,14 +479,14 @@ export default function ChatPage() {
               className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 disabled:opacity-40"
               style={{
                 background: input.trim() && !loading
-                  ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
-                  : 'rgba(59,130,246,0.1)',
+                  ? 'var(--theme-gradient)'
+                  : 'var(--border)',
               }}
             >
               <Send className="w-4 h-4 text-white" />
             </button>
           </div>
-          <p className="text-xs text-center mt-2" style={{ color: '#334155' }}>
+          <p className="text-xs text-center mt-2" style={{ color: 'var(--text-muted)' }}>
             AI responses are powered by RAG search over your emails
           </p>
         </div>

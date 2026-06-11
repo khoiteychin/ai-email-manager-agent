@@ -23,6 +23,7 @@
   --bg-sidebar: rgb(40, 2, 21);
   --text-sidebar-logo: rgb(255, 229, 240);
   --text-sidebar-user: rgb(255, 229, 240);
+  --theme-gradient: linear-gradient(135deg, rgb(253, 109, 174), rgb(180, 20, 120));
 }
 
 html.light {
@@ -44,6 +45,7 @@ html.light {
   --bg-sidebar: rgb(255, 215, 235);
   --text-sidebar-logo: rgb(26, 0, 11);
   --text-sidebar-user: rgb(26, 0, 11);
+  --theme-gradient: linear-gradient(135deg, rgb(146, 2, 67), rgb(200, 30, 110));
 }
 
 html.dark {
@@ -65,6 +67,7 @@ html.dark {
   --bg-sidebar: rgb(40, 2, 21);
   --text-sidebar-logo: rgb(255, 229, 240);
   --text-sidebar-user: rgb(255, 229, 240);
+  --theme-gradient: linear-gradient(135deg, rgb(253, 109, 174), rgb(180, 20, 120));
 }
 
 /* ─── Base Styles ────────────────────────────────────────────── */
@@ -122,7 +125,7 @@ body {
 
   /* Gradient text */
   .gradient-text {
-    background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+    background: var(--theme-gradient);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -131,13 +134,13 @@ body {
   /* Glow button */
   .btn-primary {
     @apply relative inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200;
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    background: var(--theme-gradient);
     color: white;
-    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 4px 15px var(--accent-glow);
   }
   .btn-primary:hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.45);
+    box-shadow: 0 6px 20px var(--accent-glow);
   }
   .btn-primary:active {
     transform: translateY(0);

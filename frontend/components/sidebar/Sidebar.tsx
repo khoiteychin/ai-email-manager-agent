@@ -111,16 +111,20 @@ export default function Sidebar() {
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
             <div
-              className={`p-1 rounded-md transition-all duration-200 ${
-                theme === 'light' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
-              }`}
+              className="p-1 rounded-md transition-all duration-200"
+              style={theme === 'light'
+                ? { background: 'var(--accent)', color: 'white' }
+                : { color: 'var(--icon-muted)' }
+              }
             >
               <Sun className="w-3.5 h-3.5" />
             </div>
             <div
-              className={`p-1 rounded-md transition-all duration-200 ${
-                theme === 'dark' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
+              className="p-1 rounded-md transition-all duration-200"
+              style={theme === 'dark'
+                ? { background: 'var(--accent)', color: 'white' }
+                : { color: 'var(--icon-muted)' }
+              }
             >
               <Moon className="w-3.5 h-3.5" />
             </div>

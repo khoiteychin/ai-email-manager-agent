@@ -5,72 +5,90 @@
 
 /* ─── CSS Custom Properties ─────────────────────────────────── */
 :root {
-  --bg-primary: rgb(26, 0, 13);
-  --bg-secondary: rgb(38, 0, 19);
-  --bg-card: rgb(48, 4, 26);
-  --bg-elevated: rgb(60, 6, 33);
-  --border: rgba(253, 109, 174, 0.15);
-  --border-hover: rgb(2, 151, 131);
-  --text-primary: rgb(255, 229, 240);
-  --text-secondary: rgba(255, 229, 240, 0.75);
-  --text-muted: rgba(255, 229, 240, 0.5);
-  --accent: rgb(253, 109, 174);
-  --accent-glow: rgba(253, 109, 174, 0.15);
-  --success: rgb(2, 151, 131);
-  --warning: rgb(48, 62, 253);
+  --bg-primary: #070c18;
+  --bg-secondary: #0f172a;
+  --bg-card: #1e293b;
+  --bg-elevated: #273348;
+  --border: rgba(99, 102, 241, 0.15);
+  --border-hover: rgba(99, 102, 241, 0.5);
+  --text-primary: #e2e8f0;
+  --text-secondary: rgba(226, 232, 240, 0.70);
+  --text-muted: rgba(226, 232, 240, 0.40);
+  --accent: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.12);
+  --success: #10b981;
+  --warning: #f59e0b;
   --danger: #ef4444;
-  
-  --bg-sidebar: rgb(48, 0, 24);
-  --text-sidebar-logo: rgb(255, 229, 240);
-  --text-sidebar-user: rgb(255, 229, 240);
-  --theme-gradient: linear-gradient(135deg, rgb(253, 109, 174), rgb(180, 20, 120));
-  --bg-glass: rgba(48, 4, 26, 0.7);
+
+  --bg-sidebar: #0f172a;
+  --text-sidebar-logo: #e2e8f0;
+  --text-sidebar-user: #e2e8f0;
+  --theme-gradient: linear-gradient(135deg, #6366f1, #4f46e5);
+  --bg-glass: rgba(15, 23, 42, 0.75);
+
+  /* Icon colors */
+  --icon-default: rgba(148, 163, 184, 1);    /* slate-400 — icon mặc định */
+  --icon-active: #6366f1;                    /* indigo — icon đang active */
+  --icon-muted: rgba(100, 116, 139, 1);      /* slate-500 — icon phụ / placeholder */
+  --icon-accent: #6366f1;                    /* dùng cho stat card icons */
 }
 
 html.light {
-  --bg-primary: rgb(255, 229, 242);
-  --bg-secondary: rgb(255, 218, 235);
+  --bg-primary: #f8f7f4;
+  --bg-secondary: #f1f0ec;
   --bg-card: #ffffff;
-  --bg-elevated: rgb(255, 200, 228);
-  --border: rgba(146, 2, 67, 0.12);
-  --border-hover: rgb(104, 253, 233);
-  --text-primary: rgb(26, 0, 11);
-  --text-secondary: rgba(26, 0, 11, 0.75);
-  --text-muted: rgba(26, 0, 11, 0.5);
-  --accent: rgb(146, 2, 67);
-  --accent-glow: rgba(146, 2, 67, 0.08);
-  --success: rgb(146, 2, 67);
-  --warning: rgb(2, 16, 207);
+  --bg-elevated: #e8e6e0;
+  --border: rgba(30, 41, 59, 0.10);
+  --border-hover: rgba(99, 102, 241, 0.40);
+  --text-primary: #1e293b;
+  --text-secondary: rgba(30, 41, 59, 0.65);
+  --text-muted: rgba(30, 41, 59, 0.40);
+  --accent: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.08);
+  --success: #10b981;
+  --warning: #f59e0b;
   --danger: #ef4444;
-  
-  --bg-sidebar: rgb(255, 205, 228);
-  --text-sidebar-logo: rgb(26, 0, 11);
-  --text-sidebar-user: rgb(26, 0, 11);
-  --theme-gradient: linear-gradient(135deg, rgb(146, 2, 67), rgb(200, 30, 110));
-  --bg-glass: rgba(255, 255, 255, 0.65);
+
+  --bg-sidebar: #f1f0ec;
+  --text-sidebar-logo: #1e293b;
+  --text-sidebar-user: #1e293b;
+  --theme-gradient: linear-gradient(135deg, #6366f1, #4f46e5);
+  --bg-glass: rgba(255, 255, 255, 0.72);
+
+  /* Icon colors */
+  --icon-default: rgba(71, 85, 105, 1);      /* slate-600 — icon mặc định */
+  --icon-active: #4f46e5;                    /* indigo-600 — icon đang active */
+  --icon-muted: rgba(148, 163, 184, 1);      /* slate-400 — icon phụ / placeholder */
+  --icon-accent: #4f46e5;
 }
 
 html.dark {
-  --bg-primary: rgb(26, 0, 13);
-  --bg-secondary: rgb(38, 0, 19);
-  --bg-card: rgb(48, 4, 26);
-  --bg-elevated: rgb(60, 6, 33);
-  --border: rgba(253, 109, 174, 0.15);
-  --border-hover: rgb(2, 151, 131);
-  --text-primary: rgb(255, 229, 240);
-  --text-secondary: rgba(255, 229, 240, 0.75);
-  --text-muted: rgba(255, 229, 240, 0.5);
-  --accent: rgb(253, 109, 174);
-  --accent-glow: rgba(253, 109, 174, 0.15);
-  --success: rgb(2, 151, 131);
-  --warning: rgb(48, 62, 253);
+  --bg-primary: #070c18;
+  --bg-secondary: #0f172a;
+  --bg-card: #1e293b;
+  --bg-elevated: #273348;
+  --border: rgba(99, 102, 241, 0.15);
+  --border-hover: rgba(99, 102, 241, 0.5);
+  --text-primary: #e2e8f0;
+  --text-secondary: rgba(226, 232, 240, 0.70);
+  --text-muted: rgba(226, 232, 240, 0.40);
+  --accent: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.12);
+  --success: #10b981;
+  --warning: #f59e0b;
   --danger: #ef4444;
-  
-  --bg-sidebar: rgb(48, 0, 24);
-  --text-sidebar-logo: rgb(255, 229, 240);
-  --text-sidebar-user: rgb(255, 229, 240);
-  --theme-gradient: linear-gradient(135deg, rgb(253, 109, 174), rgb(180, 20, 120));
-  --bg-glass: rgba(48, 4, 26, 0.7);
+
+  --bg-sidebar: #0f172a;
+  --text-sidebar-logo: #e2e8f0;
+  --text-sidebar-user: #e2e8f0;
+  --theme-gradient: linear-gradient(135deg, #6366f1, #4f46e5);
+  --bg-glass: rgba(15, 23, 42, 0.75);
+
+  /* Icon colors */
+  --icon-default: rgba(148, 163, 184, 1);
+  --icon-active: #6366f1;
+  --icon-muted: rgba(100, 116, 139, 1);
+  --icon-accent: #6366f1;
 }
 
 /* ─── Base Styles ────────────────────────────────────────────── */

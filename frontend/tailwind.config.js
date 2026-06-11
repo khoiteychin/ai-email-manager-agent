@@ -13,11 +13,10 @@ module.exports = {
       colors: {
         // Deep navy dark theme
         navy: {
-          950: '#050914',
-          900: '#0A0F1E',
-          800: '#0E1629',
-          700: '#131d36',
-          600: '#1a2744',
+          950: '#070c18',
+          900: '#0f172a',
+          800: '#1e293b',
+          700: '#273348',
         },
         // Electric blue accents
         blue: {

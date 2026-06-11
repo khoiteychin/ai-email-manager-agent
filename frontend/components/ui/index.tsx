@@ -139,13 +139,13 @@ export function Input({ label, error, icon, className, ...props }: InputProps) {
   return (
     <div className="space-y-1.5">
       {label && (
-        <label className="block text-xs font-medium" style={{ color: '#94a3b8' }}>
+        <label className="block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
           {label}
         </label>
       )}
       <div className="relative">
         {icon && (
-          <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#475569' }}>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--icon-muted)' }}>
             {icon}
           </span>
         )}
@@ -164,7 +164,7 @@ export function Spinner({ className }: { className?: string }) {
   return (
     <div
       className={clsx('w-6 h-6 border-2 border-t-blue-400 rounded-full animate-spin', className)}
-      style={{ borderColor: 'rgba(59,130,246,0.2)', borderTopColor: '#60a5fa' }}
+      style={{ borderColor: 'var(--accent-glow)', borderTopColor: 'var(--accent)' }}
     />
   );
 }
@@ -177,11 +177,11 @@ export function EmptyState({ icon, title, description }: {
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
-        <span style={{ color: '#60a5fa' }}>{icon}</span>
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'var(--accent-glow)', border: '1px solid var(--border-hover)' }}>
+        <span style={{ color: 'var(--icon-accent)' }}>{icon}</span>
       </div>
-      <h3 className="text-base font-semibold mb-1" style={{ color: '#e2e8f0' }}>{title}</h3>
-      <p className="text-sm max-w-xs" style={{ color: '#64748b' }}>{description}</p>
+      <h3 className="text-base font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{title}</h3>
+      <p className="text-sm max-w-xs" style={{ color: 'var(--text-muted)' }}>{description}</p>
     </div>
   );
 }

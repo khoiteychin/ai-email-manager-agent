@@ -113,7 +113,7 @@ export default function DashboardPage() {
               icon={<Mail className="w-5 h-5" />}
               label="Total Emails"
               value={stats?.totalEmails ?? 0}
-              color="#3b82f6"
+              color="#6366f1"
             />
             <StatCard
               icon={<Inbox className="w-5 h-5" />}
@@ -134,7 +134,7 @@ export default function DashboardPage() {
               label="Starred"
               value={stats?.starredCount ?? 0}
               sub="Quick access"
-              color="#a855f7"
+              color="#10b981"
             />
           </div>
 

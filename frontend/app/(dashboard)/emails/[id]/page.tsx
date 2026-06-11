@@ -126,8 +126,8 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
       });
       setIsEditingDraft(false);
       toast.success('Draft saved');
-    } catch {
-      toast.error('Failed to save draft');
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || err.response?.data?.message || 'Failed to save draft');
     } finally {
       setSavingDraft(false);
     }
@@ -144,8 +144,8 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
       toast.success('Email sent successfully! ✨');
       setDraft(null);
       setIsEditingDraft(false);
-    } catch {
-      toast.error('Failed to send email');
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || err.response?.data?.message || 'Failed to send email');
     } finally {
       setSendingEmail(false);
     }
@@ -168,8 +168,8 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
       });
       toast.success('Email sent successfully! ✨');
       setDraft(null);
-    } catch {
-      toast.error('Failed to send email');
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || err.response?.data?.message || 'Failed to send email');
     } finally {
       setSendingEmail(false);
     }

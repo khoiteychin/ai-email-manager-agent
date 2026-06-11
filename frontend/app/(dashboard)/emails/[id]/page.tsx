@@ -61,7 +61,16 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     emailsApi.get(params.id)
-      .then((res) => setEmail(res.data))
+      .then((res) => {
+        setEmail(res.data);
+        if (res.data && !res.data.isRead) {
+          emailsApi.markAsRead(params.id, true)
+            .then(() => {
+              setEmail((prev) => prev ? { ...prev, isRead: true } : null);
+            })
+            .catch(console.error);
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [params.id]);

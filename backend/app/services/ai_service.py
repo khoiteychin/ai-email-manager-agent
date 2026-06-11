@@ -143,6 +143,8 @@ async def generate_draft(
 
 Instruction: {instruction}
 
+Write the email in the same language as the original email context (e.g., if the original email is in Vietnamese, write the reply in Vietnamese; if it is in English, write the reply in English). Maintain a professional tone.
+
 Return a JSON object with:
 {{
   "to": "recipient email if mentioned, otherwise empty string",

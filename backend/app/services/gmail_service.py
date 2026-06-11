@@ -365,16 +365,17 @@ async def send_email(user_id: str, db: AsyncSession, to: str, subject: str, body
     account = result.scalar_one_or_none()
     from_email = account.email if account else "me"
 
-    raw_email = "\n".join([
-        f"From: {from_email}",
-        f"To: {to}",
-        f"Subject: {subject}",
-        "Content-Type: text/html; charset=utf-8",
-        "",
-        body,
-    ])
+    from email.message import EmailMessage
 
-    encoded = base64.urlsafe_b64encode(raw_email.encode("utf-8")).decode("utf-8")
+    msg = EmailMessage()
+    msg["From"] = from_email
+    if to:
+        msg["To"] = to
+    if subject:
+        msg["Subject"] = subject
+    msg.set_content(body, subtype="html", charset="utf-8")
+
+    encoded = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
     service.users().messages().send(userId="me", body={"raw": encoded}).execute()
 
 
@@ -387,19 +388,17 @@ async def create_draft(user_id: str, db: AsyncSession, to: str, subject: str, bo
     account = result.scalar_one_or_none()
     from_email = account.email if account else "me"
 
-    headers = [f"From: {from_email}"]
-    if to:
-        headers.append(f"To: {to}")
-    if subject:
-        headers.append(f"Subject: {subject}")
-    headers.extend([
-        "Content-Type: text/html; charset=utf-8",
-        "",
-        body,
-    ])
-    raw_email = "\n".join(headers)
+    from email.message import EmailMessage
 
-    encoded = base64.urlsafe_b64encode(raw_email.encode("utf-8")).decode("utf-8")
+    msg = EmailMessage()
+    msg["From"] = from_email
+    if to:
+        msg["To"] = to
+    if subject:
+        msg["Subject"] = subject
+    msg.set_content(body, subtype="html", charset="utf-8")
+
+    encoded = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
     draft = service.users().drafts().create(
         userId="me",
         body={"message": {"raw": encoded}},
@@ -552,19 +551,17 @@ async def update_draft(user_id: str, db: AsyncSession, draft_id: str, to: str, s
     account = result.scalar_one_or_none()
     from_email = account.email if account else "me"
 
-    headers = [f"From: {from_email}"]
-    if to:
-        headers.append(f"To: {to}")
-    if subject:
-        headers.append(f"Subject: {subject}")
-    headers.extend([
-        "Content-Type: text/html; charset=utf-8",
-        "",
-        body,
-    ])
-    raw_email = "\n".join(headers)
+    from email.message import EmailMessage
 
-    encoded = base64.urlsafe_b64encode(raw_email.encode("utf-8")).decode("utf-8")
+    msg = EmailMessage()
+    msg["From"] = from_email
+    if to:
+        msg["To"] = to
+    if subject:
+        msg["Subject"] = subject
+    msg.set_content(body, subtype="html", charset="utf-8")
+
+    encoded = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
     service.users().drafts().update(
         userId="me",
         id=draft_id,

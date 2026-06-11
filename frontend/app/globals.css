@@ -5,66 +5,66 @@
 
 /* ─── CSS Custom Properties ─────────────────────────────────── */
 :root {
-  --bg-primary: #050914;
-  --bg-secondary: #0A0F1E;
-  --bg-card: #0E1629;
-  --bg-elevated: #131d36;
-  --border: rgba(59, 130, 246, 0.12);
-  --border-hover: rgba(59, 130, 246, 0.3);
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: #475569;
-  --accent: #3b82f6;
-  --accent-glow: rgba(59, 130, 246, 0.15);
-  --success: #10b981;
-  --warning: #f59e0b;
+  --bg-primary: rgb(26, 0, 13);
+  --bg-secondary: rgb(40, 2, 21);
+  --bg-card: rgb(48, 4, 26);
+  --bg-elevated: rgb(60, 6, 33);
+  --border: rgba(253, 109, 174, 0.15);
+  --border-hover: rgb(2, 151, 131);
+  --text-primary: rgb(255, 229, 240);
+  --text-secondary: rgba(255, 229, 240, 0.7);
+  --text-muted: rgba(255, 229, 240, 0.5);
+  --accent: rgb(253, 109, 174);
+  --accent-glow: rgba(253, 109, 174, 0.15);
+  --success: rgb(2, 151, 131);
+  --warning: rgb(48, 62, 253);
   --danger: #ef4444;
   
-  --bg-sidebar: rgba(10, 15, 30, 0.95);
-  --text-sidebar-logo: #ffffff;
-  --text-sidebar-user: #ffffff;
+  --bg-sidebar: rgb(40, 2, 21);
+  --text-sidebar-logo: rgb(255, 229, 240);
+  --text-sidebar-user: rgb(255, 229, 240);
 }
 
 html.light {
-  --bg-primary: #f5f8f3; /* background */
-  --bg-secondary: #ebefe8;
+  --bg-primary: rgb(255, 229, 242);
+  --bg-secondary: rgb(255, 215, 235);
   --bg-card: #ffffff;
-  --bg-elevated: #e0e6db;
-  --border: #d0d9cd;
-  --border-hover: #b7a9ce; /* secondary */
-  --text-primary: #090d08; /* text */
-  --text-secondary: #596157;
-  --text-muted: #8c968a;
-  --accent: #77a663; /* primary */
-  --accent-glow: rgba(119, 166, 99, 0.1);
-  --success: #77a663;
-  --warning: #bb89a7; /* accent */
+  --bg-elevated: rgb(255, 200, 228);
+  --border: rgba(146, 2, 67, 0.12);
+  --border-hover: rgb(104, 253, 233);
+  --text-primary: rgb(26, 0, 11);
+  --text-secondary: rgba(26, 0, 11, 0.75);
+  --text-muted: rgba(26, 0, 11, 0.5);
+  --accent: rgb(146, 2, 67);
+  --accent-glow: rgba(146, 2, 67, 0.08);
+  --success: rgb(146, 2, 67);
+  --warning: rgb(2, 16, 207);
   --danger: #ef4444;
   
-  --bg-sidebar: #ebefe8;
-  --text-sidebar-logo: #090d08;
-  --text-sidebar-user: #090d08;
+  --bg-sidebar: rgb(255, 215, 235);
+  --text-sidebar-logo: rgb(26, 0, 11);
+  --text-sidebar-user: rgb(26, 0, 11);
 }
 
 html.dark {
-  --bg-primary: #050914;
-  --bg-secondary: #0A0F1E;
-  --bg-card: #0E1629;
-  --bg-elevated: #131d36;
-  --border: rgba(59, 130, 246, 0.12);
-  --border-hover: rgba(59, 130, 246, 0.3);
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: #475569;
-  --accent: #3b82f6;
-  --accent-glow: rgba(59, 130, 246, 0.15);
-  --success: #10b981;
-  --warning: #f59e0b;
+  --bg-primary: rgb(26, 0, 13);
+  --bg-secondary: rgb(40, 2, 21);
+  --bg-card: rgb(48, 4, 26);
+  --bg-elevated: rgb(60, 6, 33);
+  --border: rgba(253, 109, 174, 0.15);
+  --border-hover: rgb(2, 151, 131);
+  --text-primary: rgb(255, 229, 240);
+  --text-secondary: rgba(255, 229, 240, 0.7);
+  --text-muted: rgba(255, 229, 240, 0.5);
+  --accent: rgb(253, 109, 174);
+  --accent-glow: rgba(253, 109, 174, 0.15);
+  --success: rgb(2, 151, 131);
+  --warning: rgb(48, 62, 253);
   --danger: #ef4444;
   
-  --bg-sidebar: rgba(10, 15, 30, 0.95);
-  --text-sidebar-logo: #ffffff;
-  --text-sidebar-user: #ffffff;
+  --bg-sidebar: rgb(40, 2, 21);
+  --text-sidebar-logo: rgb(255, 229, 240);
+  --text-sidebar-user: rgb(255, 229, 240);
 }
 
 /* ─── Base Styles ────────────────────────────────────────────── */

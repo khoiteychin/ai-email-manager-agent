@@ -111,25 +111,14 @@ async def lifespan(app: FastAPI):
                                     )
                                     # Send notifications
                                     if ai_result:
-                                        priority = ai_result.get("priority", "medium").upper()
-                                        category = ai_result.get("category", "other").capitalize()
-                                        summary = ai_result.get("summary", "No summary available.")
-                                        subject = data.get("subject") or "(No Subject)"
-                                        sender = data.get("sender") or "Unknown"
-
-                                        notification_msg = (
-                                            f"📩 **New Email: {subject}**\n"
-                                            f"**From:** {sender}\n"
-                                            f"**Priority:** {priority}\n"
-                                            f"**Category:** {category}\n"
-                                            f"**Summary:** {summary}"
-                                        )
+                                        from app.services.ai_service import format_discord_notification
+                                        notification_msg = format_discord_notification(email, ai_result)
 
                                         try:
                                             from app.routers.discord import send_discord_notification
                                             await send_discord_notification(user_id, notification_msg, db)
                                             notified_time = datetime.datetime.now(datetime.timezone.utc)
-                                            logger.info(f"Auto-sync: Discord notified for Email '{subject}' at {notified_time.isoformat()}. Delay: {(notified_time - received_time).total_seconds()}s")
+                                            logger.info(f"Auto-sync: Discord notified for Email '{data.get('subject')}' at {notified_time.isoformat()}. Delay: {(notified_time - received_time).total_seconds()}s")
                                         except Exception as discord_err:
                                             logger.warning(f"Auto-sync Discord notify failed: {discord_err}")
 

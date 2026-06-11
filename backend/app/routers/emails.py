@@ -32,13 +32,13 @@ async def _classify_in_background(email_id: str, subject: str, body_text: str, u
             
             # Send Discord notification
             if result:
-                from app.routers.discord import send_discord_notification
-                priority = result.get("priority", "medium").upper()
-                category = result.get("category", "other").capitalize()
-                summary = result.get("summary", "No summary available.")
-                
-                msg = f"📩 **Mới nhận Email: {subject}**\n**Độ ưu tiên:** {priority}\n**Phân loại:** {category}\n**Tóm tắt:** {summary}"
-                await send_discord_notification(user_id, msg, db)
+                email_res = await db.execute(select(Email).where(Email.id == email_id))
+                email = email_res.scalar_one_or_none()
+                if email:
+                    from app.routers.discord import send_discord_notification
+                    from app.services.ai_service import format_discord_notification
+                    msg = format_discord_notification(email, result)
+                    await send_discord_notification(user_id, msg, db)
                 
         except Exception as e:
             logger.error(f"Background classify failed for {email_id}: {e}")

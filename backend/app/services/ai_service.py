@@ -71,7 +71,8 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
     system_prompt = f"""You are an AI email assistant. Help users understand and manage their emails.
 Use the following emails from the user's inbox as context to answer their question.
 If the information is not in the provided emails, say so clearly.
-Always respond in the same language the user uses.
+
+Language Rule: Always respond in the same language the user uses. If the user writes in Vietnamese (or mostly Vietnamese with a few English words), respond in natural Vietnamese. If the user writes in English, respond in English.
 
 Email Context:
 {context}"""
@@ -281,7 +282,9 @@ Return JSON with:
   "category": "one of: work, personal, social, invoice, promotion, security",
   "priority": "one of: low, medium, high",
   "sentiment": "one of: positive, neutral, negative",
-  "summary": "2-3 sentence summary"
+  "summary": "2-3 sentence summary in Vietnamese",
+  "key_points": ["bullet point 1 in Vietnamese", "bullet point 2 in Vietnamese", "bullet point 3 in Vietnamese"],
+  "suggestion": "actionable suggestion in Vietnamese"
 }}"""
 
     try:
@@ -301,6 +304,17 @@ Return JSON with:
         elif category not in valid_categories:
             category = "personal"
 
+        # Format the summary to store in DB
+        summary_text = result.get("summary", "")
+        key_points = result.get("key_points", [])
+        suggestion = result.get("suggestion", "")
+
+        formatted_summary = f"{summary_text}"
+        if key_points:
+            formatted_summary += "\n\n🔑 Điểm chính:\n" + "\n".join(f"• {point}" for point in key_points)
+        if suggestion:
+            formatted_summary += f"\n\n💡 Đề xuất: {suggestion}"
+
         await db.execute(
             text("""UPDATE emails SET category=:category, priority=:priority,
                   sentiment=:sentiment, summary=:summary WHERE id=:id"""),
@@ -308,7 +322,7 @@ Return JSON with:
                 "category": category,
                 "priority": result.get("priority", "medium"),
                 "sentiment": result.get("sentiment", "neutral"),
-                "summary": result.get("summary", ""),
+                "summary": formatted_summary,
                 "id": email_id,
             },
         )
@@ -438,5 +452,62 @@ async def delete_chat_message(user_id: str, message_id: str, db: AsyncSession) -
     await db.delete(message)
     await db.commit()
     return True
+
+
+def format_discord_notification(email, ai_result) -> str:
+    # Translations
+    categories_vn = {
+        "work": "Công việc",
+        "personal": "Cá nhân",
+        "social": "Mạng xã hội",
+        "invoice": "Hóa đơn",
+        "promotion": "Quảng cáo",
+        "security": "Bảo mật",
+        "other": "Khác",
+    }
+    priorities_vn = {
+        "low": "🟢 Thấp",
+        "medium": "🟡 Trung bình",
+        "high": "🔴 Cao",
+    }
+
+    category_key = (ai_result.get("category") or "other").lower()
+    priority_key = (ai_result.get("priority") or "medium").lower()
+
+    category_vn = categories_vn.get(category_key, "Khác")
+    priority_vn = priorities_vn.get(priority_key, "🟡 Trung bình")
+
+    sender = email.sender or "Unknown"
+    subject = email.subject or "(No Subject)"
+
+    # Vietnam time conversion
+    from datetime import timezone, timedelta
+    received_at = getattr(email, 'received_at', None)
+    if received_at:
+        if received_at.tzinfo is None:
+            received_at = received_at.replace(tzinfo=timezone.utc)
+        vn_tz = timezone(timedelta(hours=7))
+        vn_time = received_at.astimezone(vn_tz)
+        date_str = vn_time.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    else:
+        date_str = "N/A"
+
+    summary = ai_result.get("summary", "Không có tóm tắt.")
+    key_points = ai_result.get("key_points", [])
+    suggestion = ai_result.get("suggestion", "")
+
+    key_points_str = "\n".join(f"• {point}" for point in key_points) if key_points else "• Không có."
+
+    msg = f"📧 **Email mới**\n\n" \
+          f"📂 **Loại:** {category_vn}\n" \
+          f"⚡ **Ưu tiên:** {priority_vn}\n" \
+          f"👤 **Từ:** {sender}\n" \
+          f"📌 **Tiêu đề:** {subject}\n" \
+          f"📅 **Ngày:** {date_str}\n\n" \
+          f"📝 **Tóm tắt:**\n{summary}\n\n" \
+          f"🔑 **Điểm chính:**\n{key_points_str}\n\n" \
+          f"💡 **Đề xuất:** {suggestion or 'Không có.'}\n\n" \
+          f"Hỏi về email này: gõ câu hỏi bất kỳ"
+    return msg
 
 

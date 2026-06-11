@@ -128,35 +128,27 @@ async def _sync_user_emails_background(user_id: str):
 
                     # Bug #4 fix: Send Discord + Telegram notifications after classifying new emails
                     if ai_result:
-                        priority = ai_result.get("priority", "medium").upper()
-                        category = ai_result.get("category", "other").capitalize()
-                        summary = ai_result.get("summary", "No summary available.")
-                        subject = row.subject or "(No Subject)"
-                        sender = row.sender or "Unknown"
+                        email_res = await db.execute(select(Email).where(Email.id == row.id))
+                        email = email_res.scalar_one_or_none()
+                        if email:
+                            from app.services.ai_service import format_discord_notification
+                            notification_msg = format_discord_notification(email, ai_result)
 
-                        notification_msg = (
-                            f"📩 **New Email: {subject}**\n"
-                            f"**From:** {sender}\n"
-                            f"**Priority:** {priority}\n"
-                            f"**Category:** {category}\n"
-                            f"**Summary:** {summary}"
-                        )
+                            # Send Discord notification
+                            try:
+                                from app.routers.discord import send_discord_notification
+                                await send_discord_notification(user_id, notification_msg, db)
+                                notified_time = datetime.datetime.now(datetime.timezone.utc)
+                                logger.info(f"Webhook: Discord notified for Email '{row.subject}' at {notified_time.isoformat()}. Delay: {(notified_time - received_time).total_seconds()}s")
+                            except Exception as discord_err:
+                                logger.warning(f"Discord notification failed: {discord_err}")
 
-                        # Send Discord notification
-                        try:
-                            from app.routers.discord import send_discord_notification
-                            await send_discord_notification(user_id, notification_msg, db)
-                            notified_time = datetime.datetime.now(datetime.timezone.utc)
-                            logger.info(f"Webhook: Discord notified for Email '{subject}' at {notified_time.isoformat()}. Delay: {(notified_time - received_time).total_seconds()}s")
-                        except Exception as discord_err:
-                            logger.warning(f"Discord notification failed: {discord_err}")
-
-                        # Send Telegram notification
-                        try:
-                            from app.routers.telegram import send_telegram_notification
-                            await send_telegram_notification(user_id, notification_msg, db)
-                        except Exception as tg_err:
-                            logger.warning(f"Telegram notification failed: {tg_err}")
+                            # Send Telegram notification
+                            try:
+                                from app.routers.telegram import send_telegram_notification
+                                await send_telegram_notification(user_id, notification_msg, db)
+                            except Exception as tg_err:
+                                logger.warning(f"Telegram notification failed: {tg_err}")
 
                 except Exception as e:
                     logger.warning(f"Classification failed for {row.id}: {e}")

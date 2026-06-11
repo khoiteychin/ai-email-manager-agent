@@ -5,7 +5,7 @@ import asyncio
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, text
 from app.database import get_db, AsyncSessionLocal
 from app.dependencies import get_current_user, AuthUser
 from app.config import settings
@@ -65,6 +65,25 @@ async def callback(
         user_id = state.split(":", 1)[0]
         await gmail_service.handle_oauth_callback(code, state, db)
         await gmail_service.setup_watch(user_id, db)
+
+        # Explicitly write to user_integrations so frontend /connect/accounts
+        # always reflects the correct connected status
+        try:
+            await db.execute(
+                text("""
+                    INSERT INTO user_integrations (user_id, provider, updated_at)
+                    VALUES (:user_id, 'gmail', NOW())
+                    ON CONFLICT (user_id, provider)
+                    DO UPDATE SET updated_at = EXCLUDED.updated_at
+                """),
+                {"user_id": user_id},
+            )
+            await db.commit()
+            logger.info(f"Gmail integration status recorded for user {user_id}")
+        except Exception as integration_err:
+            await db.rollback()
+            logger.error(f"Gmail integration status update FAILED for user {user_id}: {integration_err}")
+
         return oauth_popup_response("gmail", True)
     except Exception as e:
         logger.error(f"Gmail callback error: {e}")

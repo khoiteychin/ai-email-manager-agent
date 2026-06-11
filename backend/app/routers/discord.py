@@ -114,7 +114,7 @@ async def callback(code: str, state: str, db: AsyncSession = Depends(get_db)):
             await db.commit()
         except Exception as integration_error:
             await db.rollback()
-            logger.warning(f"Discord integration status update failed: {integration_error}")
+            logger.error(f"Discord integration status update FAILED for user {state}: {integration_error}")
 
         return oauth_popup_response("discord", True)
     except Exception as e:

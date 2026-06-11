@@ -43,10 +43,117 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(_gmail_watch_renewal_loop())
     logger.info("✅ Gmail watch renewal loop scheduled (every 12h)")
-    
+
+    # ─── Auto-sync fallback loop (every 2 minutes) ───────────────
+    # This loop runs as a fallback in case Pub/Sub push notifications
+    # are not configured or fail. It fetches new emails for all connected
+    # Gmail accounts and sends Discord/Telegram notifications.
+    async def _auto_sync_loop():
+        import asyncio
+        from app.database import AsyncSessionLocal
+        from app.models import GmailAccount, Email
+        from app.services.gmail_service import fetch_emails_incremental, fetch_recent_emails
+        from app.services.ai_service import classify_and_summarize
+        from sqlalchemy import select
+
+        # Wait 60s after startup before first run
+        await asyncio.sleep(60)
+
+        while True:
+            try:
+                async with AsyncSessionLocal() as db:
+                    # Get all connected Gmail accounts
+                    result = await db.execute(
+                        select(GmailAccount).where(GmailAccount.refresh_token.isnot(None))
+                    )
+                    accounts = result.scalars().all()
+
+                    for account in accounts:
+                        try:
+                            user_id = account.user_id
+
+                            # Try incremental sync first, fall back to recent emails
+                            emails_data = await fetch_emails_incremental(user_id, db)
+                            if not emails_data:
+                                if not account.history_id:
+                                    emails_data = await fetch_recent_emails(user_id, db, max_results=10)
+                                else:
+                                    continue  # No new emails via incremental
+
+                            new_count = 0
+                            for data in emails_data:
+                                # Skip if already exists
+                                existing = await db.execute(
+                                    select(Email).where(
+                                        Email.user_id == user_id,
+                                        Email.gmail_id == data["gmail_id"]
+                                    )
+                                )
+                                if existing.scalar_one_or_none():
+                                    continue
+
+                                email = Email(user_id=user_id, **data)
+                                db.add(email)
+                                await db.flush()
+                                new_count += 1
+
+                                # Classify with AI
+                                try:
+                                    ai_result = await classify_and_summarize(
+                                        email.id,
+                                        data.get("subject", ""),
+                                        data.get("body_text", ""),
+                                        db
+                                    )
+                                    # Send notifications
+                                    if ai_result:
+                                        priority = ai_result.get("priority", "medium").upper()
+                                        category = ai_result.get("category", "other").capitalize()
+                                        summary = ai_result.get("summary", "No summary available.")
+                                        subject = data.get("subject") or "(No Subject)"
+                                        sender = data.get("sender") or "Unknown"
+
+                                        notification_msg = (
+                                            f"📩 **New Email: {subject}**\n"
+                                            f"**From:** {sender}\n"
+                                            f"**Priority:** {priority}\n"
+                                            f"**Category:** {category}\n"
+                                            f"**Summary:** {summary}"
+                                        )
+
+                                        try:
+                                            from app.routers.discord import send_discord_notification
+                                            await send_discord_notification(user_id, notification_msg, db)
+                                        except Exception as discord_err:
+                                            logger.warning(f"Auto-sync Discord notify failed: {discord_err}")
+
+                                        try:
+                                            from app.routers.telegram import send_telegram_notification
+                                            await send_telegram_notification(user_id, notification_msg, db)
+                                        except Exception as tg_err:
+                                            logger.warning(f"Auto-sync Telegram notify failed: {tg_err}")
+                                except Exception as ai_err:
+                                    logger.warning(f"Auto-sync AI classify failed: {ai_err}")
+
+                            if new_count > 0:
+                                await db.commit()
+                                logger.info(f"Auto-sync: {new_count} new email(s) for user {user_id}")
+
+                        except Exception as user_err:
+                            logger.error(f"Auto-sync error for user {account.user_id}: {user_err}")
+
+            except Exception as loop_err:
+                logger.error(f"Auto-sync loop error: {loop_err}")
+
+            await asyncio.sleep(2 * 60)  # Run every 2 minutes
+
+    asyncio.create_task(_auto_sync_loop())
+    logger.info("✅ Gmail auto-sync fallback loop scheduled (every 2 min)")
+
     yield
     # Shutdown
     logger.info("🛑 Backend shutting down...")
+
 
 
 app = FastAPI(

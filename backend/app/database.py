@@ -14,8 +14,8 @@ if "supabase" in settings.DATABASE_URL:
 engine = create_async_engine(
     settings.DATABASE_URL,
     connect_args=connect_args,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=20,
+    max_overflow=30,
     pool_pre_ping=True,
     echo=settings.ENVIRONMENT == "development",
 )

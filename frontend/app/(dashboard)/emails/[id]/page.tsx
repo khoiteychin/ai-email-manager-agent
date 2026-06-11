@@ -203,7 +203,7 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
       <Link
         href="/emails"
         className="inline-flex items-center gap-2 text-sm hover:text-blue-400 transition-colors"
-        style={{ color: '#64748b' }}
+        style={{ color: 'var(--text-secondary)' }}
       >
         <ArrowLeft className="w-4 h-4" />
         Back to Emails
@@ -215,10 +215,10 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1 min-w-0 pr-4">
-              <h1 className="text-xl font-bold text-white mb-1">
+              <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
                 {email.subject || '(No subject)'}
               </h1>
-              <div className="flex items-center gap-3 text-sm" style={{ color: '#64748b' }}>
+              <div className="flex items-center gap-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
                 {/* Bug #2 fix: use sender (canonical) with fromAddress fallback */}
                 <span>From: {email.sender || email.fromAddress || 'Unknown'}</span>
                 <span>·</span>
@@ -233,7 +233,7 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
               {email.isStarred ? (
                 <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
               ) : (
-                <StarOff className="w-5 h-5" style={{ color: '#475569' }} />
+                <StarOff className="w-5 h-5" style={{ color: 'var(--text-muted)' }} />
               )}
             </button>
           </div>
@@ -248,12 +248,12 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
           {email.summary && (
             <div
               className="p-4 rounded-xl mb-5"
-              style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)' }}
+              style={{ background: 'var(--accent-glow)', border: '1px solid var(--border)' }}
             >
-              <div className="text-xs font-semibold mb-2" style={{ color: '#60a5fa' }}>
+              <div className="text-xs font-semibold mb-2" style={{ color: 'var(--accent)' }}>
                 🤖 AI Summary
               </div>
-              <p className="text-sm" style={{ color: '#94a3b8' }}>
+              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 {email.summary}
               </p>
             </div>
@@ -263,9 +263,9 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
           {(email.bodyPreview || email.bodyText) && (
             <div
               className="p-4 rounded-xl"
-              style={{ background: 'rgba(14,22,41,0.8)', border: '1px solid rgba(59,130,246,0.08)' }}
+              style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
             >
-              <p className="text-sm whitespace-pre-wrap" style={{ color: '#94a3b8' }}>
+              <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>
                 {email.bodyPreview || email.bodyText}
               </p>
             </div>
@@ -276,7 +276,7 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
       {/* AI Actions */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
         <Card className="p-6">
-          <h2 className="text-base font-semibold text-white mb-4">⚡ AI Actions</h2>
+          <h2 className="text-base font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>⚡ AI Actions</h2>
           <div className="flex flex-wrap gap-3">
             <Button onClick={generateReply} loading={generating} variant="primary">
               <Reply className="w-4 h-4" />
@@ -305,22 +305,22 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
           {/* Draft result */}
           {draft && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               className="mt-5 space-y-3"
             >
               {isEditingDraft ? (
                 <div
                   className="p-4 rounded-xl space-y-4"
-                  style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)' }}
+                  style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold" style={{ color: '#60a5fa' }}>
+                    <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>
                       Edit Draft
                     </span>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold mb-1" style={{ color: '#94a3b8' }}>To</label>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>To</label>
                     <input
                       type="text"
                       value={editTo}
@@ -329,7 +329,7 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold mb-1" style={{ color: '#94a3b8' }}>Subject</label>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Subject</label>
                     <input
                       type="text"
                       value={editSubject}
@@ -338,7 +338,7 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold mb-1" style={{ color: '#94a3b8' }}>Body</label>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Body</label>
                     <textarea
                       value={editBody}
                       onChange={(e) => setEditBody(e.target.value)}
@@ -350,29 +350,29 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
               ) : (
                 <div
                   className="p-4 rounded-xl"
-                  style={{ background: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.2)' }}
+                  style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold" style={{ color: '#60a5fa' }}>
+                    <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>
                       Generated Draft
                     </span>
-                    <button onClick={copyDraft} className="text-xs flex items-center gap-1" style={{ color: '#64748b' }}>
+                    <button onClick={copyDraft} className="text-xs flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
                       {copied ? <CheckCheck className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                       {copied ? 'Copied!' : 'Copy'}
                     </button>
                   </div>
                   {draft.subject && (
-                    <p className="text-xs font-medium mb-2" style={{ color: '#94a3b8' }}>
+                    <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                       Subject: {draft.subject}
                     </p>
                   )}
                   {draft.to && (
-                    <p className="text-xs font-medium mb-2" style={{ color: '#94a3b8' }}>
+                    <p className="text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
                       To: {draft.to}
                     </p>
                   )}
                   {/* Bug #5/#6 fix: draft body is plain text, display with whitespace-pre-wrap */}
-                  <p className="text-sm whitespace-pre-wrap" style={{ color: '#cbd5e1' }}>
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>
                     {draft.body || (draft as any).signature || JSON.stringify(draft, null, 2)}
                   </p>
                 </div>

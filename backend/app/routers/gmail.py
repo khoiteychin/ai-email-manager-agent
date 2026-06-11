@@ -64,7 +64,10 @@ async def callback(
     try:
         user_id = state.split(":", 1)[0]
         await gmail_service.handle_oauth_callback(code, state, db)
-        await gmail_service.setup_watch(user_id, db)
+        try:
+            await gmail_service.setup_watch(user_id, db)
+        except Exception as watch_err:
+            logger.error(f"Gmail watch setup failed for {user_id}, but continuing: {watch_err}")
 
         # Explicitly write to user_integrations so frontend /connect/accounts
         # always reflects the correct connected status

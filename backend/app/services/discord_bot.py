@@ -59,6 +59,13 @@ async def on_message(message: discord.Message):
             user_id = account.user_id
             logger.info(f"Discord bot: matched discord_id={discord_id_str} → user_id={user_id}")
 
+            # Auto-save or update channel_id so backend notifications know where to send messages
+            if not account.channel_id or account.channel_id != str(message.channel.id):
+                account.channel_id = str(message.channel.id)
+                await db.commit()
+                logger.info(f"Discord bot: auto-updated channel_id to {account.channel_id} for user {user_id}")
+
+
             # Let the user know we are thinking
             async with message.channel.typing():
                 try:

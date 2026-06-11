@@ -234,9 +234,9 @@ export default function ChatPage() {
                   key={sid}
                   className="w-full text-left rounded-lg group relative"
                   style={{
-                    background: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
+                    background: isActive ? 'var(--accent-glow)' : 'transparent',
                     border: isActive
-                      ? '1px solid rgba(59,130,246,0.2)'
+                      ? '1px solid var(--accent)'
                       : '1px solid transparent',
                   }}
                 >
@@ -244,13 +244,13 @@ export default function ChatPage() {
                   <button
                     onClick={() => loadSession(sid)}
                     className="w-full text-left px-3 py-2.5 text-xs transition-all duration-200 pr-8"
-                    style={{ color: isActive ? '#60a5fa' : '#64748b' }}
+                    style={{ color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <MessageSquare className="w-3 h-3 flex-shrink-0" />
                       <span className="truncate font-medium">{label}</span>
                     </div>
-                    <span className="text-xs" style={{ color: '#475569' }}>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                       {formatDistanceToNow(new Date(session.createdAt), { addSuffix: true })}
                     </span>
                   </button>

@@ -233,14 +233,14 @@ async def send_discord_notification(user_id: str, message: str, db: AsyncSession
             if account.webhook_url:
                 async with httpx.AsyncClient() as client:
                     res = await client.post(account.webhook_url, json={"content": message})
-                    if res.status_code in (200, 204):
-                        sent = True
-                        logger.info(f"Discord webhook notification sent for user {user_id}")
-                    else:
-                        logger.error(
-                            f"Discord webhook failed for user {user_id}: "
-                            f"HTTP {res.status_code} – {res.text[:200]}"
-                        )
+                if res.status_code in (200, 204):
+                    sent = True
+                    logger.info(f"Discord webhook notification sent for user {user_id}")
+                else:
+                    logger.error(
+                        f"Discord webhook failed for user {user_id}: "
+                        f"HTTP {res.status_code} - {res.text[:200]}"
+                    )
             elif settings.DISCORD_BOT_TOKEN and account.channel_id:
                 async with httpx.AsyncClient() as client:
                     res = await client.post(
@@ -254,18 +254,18 @@ async def send_discord_notification(user_id: str, message: str, db: AsyncSession
                 else:
                     logger.error(
                         f"Discord bot message failed for user {user_id}: "
-                        f"HTTP {res.status_code} – {res.text[:200]}"
+                        f"HTTP {res.status_code} - {res.text[:200]}"
                     )
-        elif not settings.DISCORD_BOT_TOKEN:
-            logger.warning(
-                f"Discord notify skipped for user {user_id}: "
-                f"DISCORD_BOT_TOKEN is not set in .env"
-            )
+            else:
+                logger.warning(
+                    f"Discord notify skipped for user {user_id}: "
+                    f"DISCORD_BOT_TOKEN is not set in .env"
+                )
 
-        if sent:
-            notification = Notification(user_id=user_id, platform="discord", content=message, status="sent")
-            fresh_db.add(notification)
-            await fresh_db.commit()
+            if sent:
+                notification = Notification(user_id=user_id, platform="discord", content=message, status="sent")
+                fresh_db.add(notification)
+                await fresh_db.commit()
     except Exception as e:
         logger.error(f"Discord notification error for user {user_id}: {e}", exc_info=True)
 

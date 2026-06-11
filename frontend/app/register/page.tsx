@@ -46,13 +46,13 @@ export default function RegisterPage() {
           <div className="inline-flex items-center gap-2 mb-4">
             <div
               className="w-10 h-10 rounded-2xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
+              style={{ background: 'var(--theme-gradient)' }}
             >
               <Zap className="w-6 h-6 text-white" />
             </div>
           </div>
           <h1 className="text-2xl font-bold gradient-text">Create your account</h1>
-          <p className="text-sm mt-2" style={{ color: '#64748b' }}>
+          <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>
             Start managing emails with AI
           </p>
         </div>
@@ -77,11 +77,11 @@ export default function RegisterPage() {
               icon={<Mail className="w-4 h-4" />}
             />
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium" style={{ color: '#94a3b8' }}>
+              <label className="block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
                 Password
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#475569' }}>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }}>
                   <Lock className="w-4 h-4" />
                 </span>
                 <input
@@ -96,7 +96,7 @@ export default function RegisterPage() {
                   type="button"
                   onClick={() => setShowPass(!showPass)}
                   className="absolute right-3 top-1/2 -translate-y-1/2"
-                  style={{ color: '#475569' }}
+                  style={{ color: 'var(--text-muted)' }}
                 >
                   {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -109,9 +109,9 @@ export default function RegisterPage() {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm" style={{ color: '#64748b' }}>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               Already have an account?{' '}
-              <Link href="/login" className="text-blue-400 hover:text-blue-300 font-medium">
+              <Link href="/login" className="hover:underline font-medium" style={{ color: 'var(--accent)' }}>
                 Sign in
               </Link>
             </p>

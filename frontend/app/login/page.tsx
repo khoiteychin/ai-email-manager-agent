@@ -41,16 +41,17 @@ export default function LoginPage() {
         className="w-full max-w-md"
       >
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
+          <div
+            className="inline-flex items-center gap-2 mb-4">
             <div
               className="w-10 h-10 rounded-2xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #3b82f6, #6366f1)' }}
+              style={{ background: 'var(--theme-gradient)' }}
             >
               <Zap className="w-6 h-6 text-white" />
             </div>
           </div>
           <h1 className="text-2xl font-bold gradient-text">Welcome back</h1>
-          <p className="text-sm mt-2" style={{ color: '#64748b' }}>
+          <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>
             {confirmed ? 'Email confirmed. You can sign in now.' : 'Sign in to your AI Email Manager'}
           </p>
         </div>
@@ -67,11 +68,11 @@ export default function LoginPage() {
               icon={<Mail className="w-4 h-4" />}
             />
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium" style={{ color: '#94a3b8' }}>
+              <label className="block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
                 Password
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#475569' }}>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }}>
                   <Lock className="w-4 h-4" />
                 </span>
                 <input
@@ -86,7 +87,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPass(!showPass)}
                   className="absolute right-3 top-1/2 -translate-y-1/2"
-                  style={{ color: '#475569' }}
+                  style={{ color: 'var(--text-muted)' }}
                 >
                   {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -100,15 +101,15 @@ export default function LoginPage() {
 
           <div
             className="mt-5 p-3 rounded-xl text-xs text-center"
-            style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)', color: '#94a3b8' }}
+            style={{ background: 'var(--accent-glow)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
           >
             Don't have an account? Register free to get started.
           </div>
 
           <div className="mt-5 text-center">
-            <p className="text-sm" style={{ color: '#64748b' }}>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               Don&apos;t have an account?{' '}
-              <Link href="/register" className="text-blue-400 hover:text-blue-300 font-medium">
+              <Link href="/register" className="hover:underline font-medium" style={{ color: 'var(--accent)' }}>
                 Sign up free
               </Link>
             </p>

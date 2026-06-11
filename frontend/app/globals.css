@@ -255,9 +255,9 @@ body {
 
 /* ─── Mesh gradient bg for auth pages ───────────────────────── */
 .auth-bg {
-  background-color: #050914;
+  background-color: var(--bg-primary);
   background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 60% 80%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 50%, var(--accent-glow) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, var(--accent-glow) 0%, transparent 50%),
+    radial-gradient(ellipse at 60% 80%, var(--accent-glow) 0%, transparent 50%);
 }

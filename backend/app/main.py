@@ -133,6 +133,7 @@ async def lifespan(app: FastAPI):
                                         except Exception as tg_err:
                                             logger.warning(f"Auto-sync Telegram notify failed: {tg_err}")
                                 except Exception as ai_err:
+                                    await db.rollback()
                                     logger.warning(f"Auto-sync AI classify failed: {ai_err}")
 
                             if new_count > 0:
@@ -140,6 +141,7 @@ async def lifespan(app: FastAPI):
                                 logger.info(f"Auto-sync: {new_count} new email(s) for user {user_id}")
 
                         except Exception as user_err:
+                            await db.rollback()
                             logger.error(f"Auto-sync error for user {account.user_id}: {user_err}")
 
             except Exception as loop_err:

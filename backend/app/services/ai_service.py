@@ -288,6 +288,7 @@ Return JSON with:
             embedding = await embed_text(text_for_embed)
             await store_embedding(email_id, embedding, db)
         except Exception as e:
+            await db.rollback()
             logger.warning(f"Embedding failed for {email_id}: {e}")
 
         return result

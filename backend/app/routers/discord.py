@@ -208,46 +208,46 @@ async def test_notification(
         return {"success": False, "error": res.text}
 
 
-async def send_discord_notification(user_id: str, message: str, db: AsyncSession):
-    """Send a notification via Discord webhook or Bot API"""
+async def send_discord_notification(user_id: str, message: str, db: AsyncSession = None):
+    """Send a notification via Discord webhook or Bot API - uses fresh DB session to avoid parent session issues"""
+    from app.database import AsyncSessionLocal
     try:
-        result = await db.execute(
-            select(DiscordAccount).where(DiscordAccount.user_id == user_id)
-        )
-        account = result.scalar_one_or_none()
-
-        # Bug #5 fix: log exactly why notification is skipped
-        if not account:
-            logger.warning(f"Discord notify skipped: no DiscordAccount found for user {user_id}")
-            return
-
-        if not account.webhook_url and not account.channel_id:
-            logger.warning(
-                f"Discord notify skipped for user {user_id}: "
-                f"no webhook_url AND no channel_id set. "
-                f"User must configure webhook URL in Settings."
+        async with AsyncSessionLocal() as fresh_db:
+            result = await fresh_db.execute(
+                select(DiscordAccount).where(DiscordAccount.user_id == user_id)
             )
-            return
+            account = result.scalar_one_or_none()
 
-        sent = False
-        if account.webhook_url:
-            async with httpx.AsyncClient() as client:
-                res = await client.post(account.webhook_url, json={"content": message})
-                if res.status_code in (200, 204):
-                    sent = True
-                    logger.info(f"Discord webhook notification sent for user {user_id}")
-                else:
-                    logger.error(
-                        f"Discord webhook failed for user {user_id}: "
-                        f"HTTP {res.status_code} – {res.text[:200]}"
-                    )
-        elif settings.DISCORD_BOT_TOKEN and account.channel_id:
-            async with httpx.AsyncClient() as client:
-                res = await client.post(
-                    f"{DISCORD_API_BASE}/channels/{account.channel_id}/messages",
-                    json={"content": message},
-                    headers={"Authorization": f"Bot {settings.DISCORD_BOT_TOKEN}"},
+            if not account:
+                logger.warning(f"Discord notify skipped: no DiscordAccount found for user {user_id}")
+                return
+
+            if not account.webhook_url and not account.channel_id:
+                logger.warning(
+                    f"Discord notify skipped for user {user_id}: "
+                    f"no webhook_url AND no channel_id set."
                 )
+                return
+
+            sent = False
+            if account.webhook_url:
+                async with httpx.AsyncClient() as client:
+                    res = await client.post(account.webhook_url, json={"content": message})
+                    if res.status_code in (200, 204):
+                        sent = True
+                        logger.info(f"Discord webhook notification sent for user {user_id}")
+                    else:
+                        logger.error(
+                            f"Discord webhook failed for user {user_id}: "
+                            f"HTTP {res.status_code} – {res.text[:200]}"
+                        )
+            elif settings.DISCORD_BOT_TOKEN and account.channel_id:
+                async with httpx.AsyncClient() as client:
+                    res = await client.post(
+                        f"{DISCORD_API_BASE}/channels/{account.channel_id}/messages",
+                        json={"content": message},
+                        headers={"Authorization": f"Bot {settings.DISCORD_BOT_TOKEN}"},
+                    )
                 if res.status_code in (200, 201):
                     sent = True
                     logger.info(f"Discord bot message sent to channel {account.channel_id} for user {user_id}")
@@ -264,8 +264,8 @@ async def send_discord_notification(user_id: str, message: str, db: AsyncSession
 
         if sent:
             notification = Notification(user_id=user_id, platform="discord", content=message, status="sent")
-            db.add(notification)
-            await db.commit()
+            fresh_db.add(notification)
+            await fresh_db.commit()
     except Exception as e:
         logger.error(f"Discord notification error for user {user_id}: {e}", exc_info=True)
 

@@ -61,11 +61,11 @@ function StatCard({ icon, label, value, sub, color }: {
         >
           <span style={{ color }}>{icon}</span>
         </div>
-        <ArrowUpRight className="w-4 h-4" style={{ color: '#475569' }} />
+        <ArrowUpRight className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
       </div>
-      <div className="text-2xl font-bold text-white mb-1">{value}</div>
-      <div className="text-xs font-medium" style={{ color: '#94a3b8' }}>{label}</div>
-      {sub && <div className="text-xs mt-1" style={{ color: '#475569' }}>{sub}</div>}
+      <div className="text-2xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{value}</div>
+      <div className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</div>
+      {sub && <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{sub}</div>}
     </motion.div>
   );
 }
@@ -93,10 +93,10 @@ export default function DashboardPage() {
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-bold text-white">
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
           {greeting}, {user?.name || user?.email?.split('@')[0]} 👋
         </h1>
-        <p className="text-sm mt-1" style={{ color: '#64748b' }}>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
           Here's what's happening with your emails today
         </p>
       </motion.div>
@@ -142,13 +142,14 @@ export default function DashboardPage() {
             {/* Recent emails */}
             <div className="lg:col-span-2 space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-blue-400" />
+                <h2 className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                  <Clock className="w-4 h-4" style={{ color: 'var(--accent)' }} />
                   Recent Emails
                 </h2>
                 <Link
                   href="/emails"
-                  className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                  className="text-xs flex items-center gap-1 hover:underline"
+                  style={{ color: 'var(--accent)' }}
                 >
                   View all <ArrowUpRight className="w-3 h-3" />
                 </Link>
@@ -172,13 +173,13 @@ export default function DashboardPage() {
                         <div className="flex items-start gap-3">
                           <div
                             className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
-                            style={{ background: email.isRead ? '#1e2d4a' : '#3b82f6' }}
+                            style={{ background: email.isRead ? 'var(--border)' : 'var(--accent)' }}
                           />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <span
                                 className="text-sm font-medium truncate"
-                                style={{ color: email.isRead ? '#94a3b8' : '#e2e8f0' }}
+                                style={{ color: email.isRead ? 'var(--text-muted)' : 'var(--text-primary)' }}
                               >
                                 {email.subject || '(No subject)'}
                               </span>
@@ -186,19 +187,19 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-2 mb-2">
                               <span
                                 className="text-xs"
-                                style={{ color: '#64748b' }}
+                                style={{ color: 'var(--text-secondary)' }}
                               >
                                 {email.fromAddress || email.sender || 'Unknown'}
                               </span>
-                              <span className="text-xs" style={{ color: '#1e2d4a' }}>•</span>
-                              <span className="text-xs" style={{ color: '#475569' }}>
+                              <span className="text-xs" style={{ color: 'var(--border)' }}>•</span>
+                              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                                 {email.receivedAt
                                   ? formatDistanceToNow(new Date(email.receivedAt), { addSuffix: true })
                                   : 'Unknown'}
                               </span>
                             </div>
                             {email.summary && (
-                              <p className="text-xs line-clamp-2" style={{ color: '#64748b' }}>
+                              <p className="text-xs line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
                                 {email.summary}
                               </p>
                             )}
@@ -217,13 +218,13 @@ export default function DashboardPage() {
 
             {/* Category breakdown */}
             <div className="space-y-3">
-              <h2 className="text-base font-semibold text-white flex items-center gap-2">
-                <BarChart2 className="w-4 h-4 text-blue-400" />
+              <h2 className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                <BarChart2 className="w-4 h-4" style={{ color: 'var(--accent)' }} />
                 Categories
               </h2>
               <Card className="p-5 space-y-4">
                 {stats?.categoryBreakdown?.length === 0 ? (
-                  <p className="text-sm text-center py-8" style={{ color: '#475569' }}>
+                  <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>
                     No data yet
                   </p>
                 ) : (
@@ -231,17 +232,17 @@ export default function DashboardPage() {
                     const total = stats.totalEmails || 1;
                     const pct = Math.round((item.count / total) * 100);
                     const catLower = item.category.toLowerCase();
-                    const color = CATEGORY_COLORS[catLower] || '#3b82f6';
+                    const color = CATEGORY_COLORS[catLower] || 'var(--accent)';
                     const catLabel = catLower.charAt(0).toUpperCase() + catLower.slice(1);
                     return (
                       <div key={item.category}>
                         <div className="flex justify-between text-xs mb-1.5">
-                          <span style={{ color: '#94a3b8' }}>{catLabel}</span>
+                          <span style={{ color: 'var(--text-secondary)' }}>{catLabel}</span>
                           <span style={{ color }}>{item.count}</span>
                         </div>
                         <div
                           className="h-1.5 rounded-full overflow-hidden"
-                          style={{ background: '#1e2d4a' }}
+                          style={{ background: 'var(--bg-secondary)' }}
                         >
                           <motion.div
                             initial={{ width: 0 }}

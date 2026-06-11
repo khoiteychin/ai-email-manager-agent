@@ -19,7 +19,6 @@ import {
   ChevronDown,
   ChevronUp,
   Send,
-  Link2,
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -43,36 +42,30 @@ function DiscordPanel({
   disconnecting: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [webhookUrl, setWebhookUrl] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [channelId, setChannelId] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [hasWebhook, setHasWebhook] = useState(false);
 
-  // Check webhook status on mount
+  const fetchStatus = async () => {
+    setRefreshing(true);
+    try {
+      const res = await discordApi.getStatus();
+      setChannelId(res.data.channelId);
+    } catch {
+      toast.error('Failed to update status');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Check status on mount
   useEffect(() => {
     if (account) {
       discordApi.getStatus().then((res) => {
-        setHasWebhook(res.data.hasWebhook);
+        setChannelId(res.data.channelId);
       }).catch(() => {});
     }
   }, [account]);
-
-  const handleSaveWebhook = async () => {
-    if (!webhookUrl.trim()) return;
-    setSaving(true);
-    try {
-      await discordApi.saveWebhookUrl(webhookUrl.trim());
-      setHasWebhook(true);
-      setWebhookUrl('');
-      setExpanded(false);
-      toast.success('✅ Discord webhook URL saved & verified!');
-    } catch (err: any) {
-      const msg = err?.response?.data?.detail || 'Failed to save webhook URL';
-      toast.error(msg);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleTest = async () => {
     setTesting(true);
@@ -112,20 +105,20 @@ function DiscordPanel({
           <div>
             <div className="text-sm font-medium text-white flex items-center gap-2">
               Discord
-              {isConnected && hasWebhook && (
+              {isConnected && channelId && (
                 <span className="text-xs px-1.5 py-0.5 rounded-md font-medium" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
-                  Webhook ✓
+                  Bot Connected ✓
                 </span>
               )}
-              {isConnected && !hasWebhook && (
+              {isConnected && !channelId && (
                 <span className="text-xs px-1.5 py-0.5 rounded-md font-medium" style={{ background: 'rgba(234,179,8,0.15)', color: '#eab308' }}>
-                  Needs webhook
+                  Awaiting Bot Ping
                 </span>
               )}
             </div>
             <div className="text-xs mt-0.5" style={{ color: '#64748b' }}>
               {isConnected
-                ? 'Receive email notifications via Discord'
+                ? 'Receive email notifications via Discord bot'
                 : 'Not connected — Receive notifications & chat with AI'}
             </div>
           </div>
@@ -175,7 +168,6 @@ function DiscordPanel({
           >
             <div className="px-4 pb-4 space-y-4 border-t" style={{ borderColor: 'rgba(88,101,242,0.1)' }}>
               <div className="pt-4">
-                {/* Webhook URL input */}
                 <div
                   className="rounded-xl p-4 space-y-3"
                   style={{ background: 'rgba(88,101,242,0.08)', border: '1px solid rgba(88,101,242,0.15)' }}
@@ -183,55 +175,50 @@ function DiscordPanel({
                   <div className="flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#eab308' }} />
                     <div className="text-xs" style={{ color: '#94a3b8' }}>
-                      <p className="font-medium text-yellow-400 mb-1">Discord Webhook URL required</p>
-                      <p>Go to your Discord server → <strong>Settings → Integrations → Webhooks</strong>, create a webhook, then paste the URL below.</p>
+                      <p className="font-medium text-yellow-400 mb-1">Link your Channel ID via Discord Bot</p>
+                      <p className="mb-2">1. Add <strong>ktcbot</strong> to your server.</p>
+                      <p className="mb-2">2. Type <strong>@ktcbot Xin chào</strong> in the channel where you want to receive notifications.</p>
+                      <p>3. The bot will automatically link that channel to your account!</p>
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={webhookUrl}
-                      onChange={(e) => setWebhookUrl(e.target.value)}
-                      placeholder="https://discord.com/api/webhooks/..."
-                      className="flex-1 px-3 py-2 rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:ring-1 focus:ring-indigo-500"
-                      style={{ background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(88,101,242,0.3)' }}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSaveWebhook()}
-                    />
+                  {channelId ? (
+                    <div className="text-sm font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-lg">
+                      Linked Channel ID: <code className="bg-slate-900/60 px-1.5 py-0.5 rounded text-white">{channelId}</code>
+                    </div>
+                  ) : (
+                    <div className="text-sm font-medium text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 p-2.5 rounded-lg">
+                      Status: Waiting for bot message...
+                    </div>
+                  )}
+
+                  <div className="flex justify-end gap-2 pt-2">
                     <button
-                      onClick={handleSaveWebhook}
-                      disabled={saving || !webhookUrl.trim()}
-                      className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50"
-                      style={{ background: 'rgba(88,101,242,0.8)', color: 'white' }}
+                      onClick={fetchStatus}
+                      disabled={refreshing}
+                      className="px-4 py-2 rounded-lg text-sm font-medium transition-colors border"
+                      style={{ background: 'transparent', borderColor: 'rgba(255,255,255,0.15)', color: '#94a3b8' }}
                     >
-                      {saving ? (
-                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <Link2 className="w-3.5 h-3.5" />
-                      )}
-                      Save
+                      {refreshing ? 'Refreshing...' : 'Refresh Status'}
                     </button>
+
+                    {channelId && (
+                      <button
+                        onClick={handleTest}
+                        disabled={testing}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)' }}
+                      >
+                        {testing ? (
+                          <span className="w-3.5 h-3.5 border-2 border-emerald-300/30 border-t-emerald-300 rounded-full animate-spin" />
+                        ) : (
+                          <Send className="w-3.5 h-3.5" />
+                        )}
+                        Send test notification
+                      </button>
+                    )}
                   </div>
                 </div>
-
-                {/* Test notification */}
-                {hasWebhook && (
-                  <div className="mt-3 flex justify-end">
-                    <button
-                      onClick={handleTest}
-                      disabled={testing}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                      style={{ background: 'rgba(16,185,129,0.1)', color: '#10b981', border: '1px solid rgba(16,185,129,0.2)' }}
-                    >
-                      {testing ? (
-                        <span className="w-3.5 h-3.5 border-2 border-emerald-300/30 border-t-emerald-300 rounded-full animate-spin" />
-                      ) : (
-                        <Send className="w-3.5 h-3.5" />
-                      )}
-                      Send test notification
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </motion.div>

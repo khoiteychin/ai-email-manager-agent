@@ -159,7 +159,6 @@ export const connectApi = {
 // ─── Discord APIs ─────────────────────────────────────────────
 export const discordApi = {
   getStatus: () => api.get('/discord/status'),
-  saveWebhookUrl: (webhookUrl: string) => api.post('/discord/webhook-url', { webhookUrl }),
   testNotification: (message?: string) => api.post('/discord/test', { message }),
 };
 

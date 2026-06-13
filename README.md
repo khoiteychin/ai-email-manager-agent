@@ -7,30 +7,13 @@ AI Email Manager là nền tảng SaaS hiện đại giúp người dùng quản
 ## 🛠️ Công Nghệ Sử Dụng (Tech Stack)
 
 ### Frontend
-* **Next.js 15 & React 19**: Framework mạnh mẽ cho trải nghiệm giao diện tối ưu.
+* **Next.js 14 & React 18**: Framework hiện đại với App Router.
 * **TypeScript**: Rõ ràng, chặt chẽ, hạn chế tối đa lỗi runtime.
-* **TailwindCSS & Shadcn UI**: Thiết kế hiện đại, responsive mượt mà trên mọi thiết bị.
-* **TanStack Query & Axios**: Quản lý trạng thái server và gọi API hiệu quả.
+* **TailwindCSS**: Thiết kế responsive với Dark/Light mode.
+* **Axios + Interceptors**: Gọi API với JWT tự động đính kèm mọi request.
+* **Framer Motion**: Animations mượt mà.
 
 ### Backend
-* **Python FastAPI**: Web framework tốc độ cao, hiện đại và bảo mật.
-* **SQLAlchemy & Asyncpg**: Truy vấn cơ sở dữ liệu phi đồng bộ (async/await) hiệu năng cao.
-* **Firebase Admin SDK (Python)**: Giải mã JWT token bảo mật, xác thực người dùng chặt chẽ.
-* **Google API Client (Gmail API)**: Kết nối, đồng bộ hóa và quản lý Gmail.
-* **OpenAI API (GPT-4o & text-embedding-3-small)**: Xử lý RAG Chatbot, tóm tắt, phân loại và sinh draft email.
-
-### Cơ Sở Dữ Liệu (Database)
-* **Supabase PostgreSQL**: Cơ sở dữ liệu đám mây bảo mật cao.
-* **pgvector**: Tiện ích mở rộng PostgreSQL dùng lưu trữ và tìm kiếm vector embeddings (Semantic Search) phục vụ RAG Chat.
-
-### Triển Khai (Deployment)
-* **Google Cloud Platform (GCP) VM Instance**: Máy chủ đám mây vận hành ứng dụng 24/7.
-* **Nginx Reverse Proxy**: Định tuyến và bảo mật luồng dữ liệu.
-* **Let's Encrypt SSL (Certbot)**: Cấu hình giao thức HTTPS an toàn tuyệt đối.
-
----
-
-## 🌐 Kiến Trúc Hệ Thống (System Architecture)
 
 ```mermaid
 graph TD

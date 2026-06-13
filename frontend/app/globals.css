@@ -57,6 +57,59 @@
   --shadow-brutal:  4px 4px 0px rgba(0, 229, 160, 0.20);
 }
 
+.light {
+  /* Base Light */
+  --black:          #ffffff;
+  --black-soft:     #f4f4f5;
+  --black-card:     #ffffff;
+  --black-elevated: #e4e4e7;
+
+  --white:          #09090b;
+  --white-dim:      #27272a;
+  --white-muted:    #71717a;
+
+  /* Primary accent — electric green (a bit darker for contrast on white) */
+  --green:          #059669;
+  --green-dim:      rgba(5, 150, 105, 0.08);
+  --green-border:   rgba(5, 150, 105, 0.20);
+  --green-glow:     rgba(5, 150, 105, 0.10);
+
+  /* Secondary accent — violet */
+  --violet:         #7c3aed;
+  --violet-dim:     rgba(124, 58, 237, 0.08);
+  --violet-border:  rgba(124, 58, 237, 0.20);
+
+  /* Utility */
+  --amber:          #d97706;
+  --amber-dim:      rgba(217, 119, 6, 0.08);
+  --red:            #dc2626;
+  --red-dim:        rgba(220, 38, 38, 0.08);
+
+  /* Borders */
+  --border:         #e4e4e7;
+  --border-strong:  #d4d4d8;
+
+  /* Semantic */
+  --bg-primary:     var(--black);
+  --bg-secondary:   var(--black-soft);
+  --bg-card:        var(--black-card);
+  --bg-elevated:    var(--black-elevated);
+  --text-primary:   var(--white);
+  --text-secondary: var(--white-dim);
+  --text-muted:     var(--white-muted);
+  --accent:         var(--green);
+  --accent-glow:    var(--green-dim);
+  --success:        var(--green);
+  --warning:        var(--amber);
+  --danger:         var(--red);
+  --bg-sidebar:     var(--black-soft);
+
+  /* Shadows */
+  --shadow-card:    0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  --shadow-hover:   0 0 0 1px var(--green-border), 0 10px 15px -3px var(--green-glow);
+  --shadow-brutal:  4px 4px 0px rgba(5, 150, 105, 0.15);
+}
+
 /* ─── Base ───────────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;

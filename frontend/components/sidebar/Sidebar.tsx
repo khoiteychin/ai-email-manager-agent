@@ -11,6 +11,8 @@ import {
   Settings,
   LogOut,
   Zap,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -32,6 +34,29 @@ export default function Sidebar() {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
+
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isLight = document.documentElement.classList.contains('light');
+      setTheme(isLight ? 'light' : 'dark');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    if (nextTheme === 'light') {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    } else {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+      localStorage.setItem('theme', 'dark');
+    }
+  };
 
   const initial = (user?.name?.[0] || user?.email?.[0] || 'U').toUpperCase();
 
@@ -134,6 +159,25 @@ export default function Sidebar() {
               {user?.email}
             </div>
           </div>
+          
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            className="p-1.5 rounded-md transition-all duration-150 flex-shrink-0"
+            style={{ color: 'var(--white-muted)' }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.color = 'var(--green)';
+              (e.currentTarget as HTMLButtonElement).style.background = 'var(--green-dim)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.color = 'var(--white-muted)';
+              (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            }}
+            title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          >
+            {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          </button>
+
           <button
             onClick={logout}
             className="p-1.5 rounded-md transition-all duration-150 flex-shrink-0"

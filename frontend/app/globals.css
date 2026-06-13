@@ -1,38 +1,42 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Design Tokens: Terminal × Brutalism ─────────────────── */
+/* ─── Design Tokens ──────────────────────────────────────── */
 :root {
-  /* Core palette */
-  --black:          #080808;
-  --black-soft:     #111111;
-  --black-card:     #181818;
-  --black-elevated: #222222;
+  /* Base */
+  --black:          #09090b;
+  --black-soft:     #101014;
+  --black-card:     #18181b;
+  --black-elevated: #27272a;
 
-  --white:          #F5F2EC;
-  --white-dim:      rgba(245, 242, 236, 0.65);
-  --white-muted:    rgba(245, 242, 236, 0.35);
+  --white:          #fafafa;
+  --white-dim:      rgba(250, 250, 250, 0.72);
+  --white-muted:    rgba(250, 250, 250, 0.38);
 
-  /* Accent — electric green (AI elements) */
-  --green:          #00FF88;
-  --green-dim:      rgba(0, 255, 136, 0.12);
-  --green-border:   rgba(0, 255, 136, 0.30);
+  /* Primary accent — electric cyan-green */
+  --green:          #00e5a0;
+  --green-dim:      rgba(0, 229, 160, 0.10);
+  --green-border:   rgba(0, 229, 160, 0.25);
+  --green-glow:     rgba(0, 229, 160, 0.15);
 
-  /* Accent 2 — amber (priority / warnings) */
-  --amber:          #FFB800;
-  --amber-dim:      rgba(255, 184, 0, 0.12);
+  /* Secondary accent — violet */
+  --violet:         #a78bfa;
+  --violet-dim:     rgba(167, 139, 250, 0.12);
+  --violet-border:  rgba(167, 139, 250, 0.25);
 
-  /* Accent 3 — red (danger) */
-  --red:            #FF3B3B;
-  --red-dim:        rgba(255, 59, 59, 0.12);
+  /* Utility */
+  --amber:          #fbbf24;
+  --amber-dim:      rgba(251, 191, 36, 0.12);
+  --red:            #f87171;
+  --red-dim:        rgba(248, 113, 113, 0.12);
 
-  /* Border — hard 1px, no blur */
-  --border:         rgba(245, 242, 236, 0.10);
-  --border-strong:  rgba(245, 242, 236, 0.22);
+  /* Borders */
+  --border:         rgba(250, 250, 250, 0.07);
+  --border-strong:  rgba(250, 250, 250, 0.14);
 
-  /* Semantic aliases */
+  /* Semantic */
   --bg-primary:     var(--black);
   --bg-secondary:   var(--black-soft);
   --bg-card:        var(--black-card);
@@ -47,13 +51,13 @@
   --danger:         var(--red);
   --bg-sidebar:     var(--black-soft);
 
-  /* Brutalist shadow offset */
-  --shadow-brutal:  3px 3px 0px rgba(245, 242, 236, 0.15);
-  --shadow-brutal-green: 3px 3px 0px var(--green);
-  --shadow-brutal-amber: 3px 3px 0px var(--amber);
+  /* Brutalist but refined — small offset */
+  --shadow-card:    0 0 0 1px rgba(250,250,250,0.07);
+  --shadow-hover:   0 0 0 1px var(--green-border), 0 4px 20px var(--green-glow);
+  --shadow-brutal:  4px 4px 0px rgba(0, 229, 160, 0.20);
 }
 
-/* ─── Base Reset ─────────────────────────────────────────── */
+/* ─── Base ───────────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
   padding: 0;
@@ -65,224 +69,175 @@ html, body {
   overflow-x: hidden;
   background-color: var(--black);
   color: var(--white);
-  font-family: 'Space Grotesk', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'kern' 1, 'liga' 1;
 }
 
-/* Monospace utility */
+/* Monospace for terminal accents */
 .font-mono {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
 }
 
-/* Playfair for editorial headings */
-.font-editorial {
-  font-family: 'Playfair Display', Georgia, serif;
+/* Display headings */
+.font-display {
+  font-family: 'Syne', sans-serif;
 }
 
 /* ─── Scrollbar ──────────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: var(--black-soft);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-}
-::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--black-soft); }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--green); }
+
+/* Selection */
+::selection {
   background: var(--green);
+  color: var(--black);
 }
 
-/* ─── Component Classes ──────────────────────────────────── */
+/* ─── Components ─────────────────────────────────────────── */
 @layer components {
 
-  /* ── Card: hard border, no blur, no radius ──────────────── */
+  /* ── Card ─────────────────────────────────────────────── */
   .card {
     background: var(--black-card);
     border: 1px solid var(--border);
-    border-radius: 0;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    border-radius: 8px;
+    box-shadow: var(--shadow-card);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
   }
 
   .card-hover {
     @apply card cursor-pointer;
   }
   .card-hover:hover {
-    border-color: var(--green);
-    box-shadow: var(--shadow-brutal-green);
+    border-color: var(--green-border);
+    box-shadow: var(--shadow-hover);
   }
 
-  /* Brutalist card — thick border + offset shadow */
-  .card-brutal {
-    background: var(--black-card);
-    border: 2px solid var(--border-strong);
-    border-radius: 0;
-    box-shadow: var(--shadow-brutal);
-  }
+  /* Glass kept as alias for backwards compat */
+  .glass        { @apply card; }
+  .glass-hover  { @apply card-hover; }
 
-  /* Keep .glass for backwards compat — map to .card */
-  .glass {
-    @apply card;
-  }
-  .glass-hover {
-    @apply card-hover;
-  }
-
-  /* ── Buttons ────────────────────────────────────────────── */
-  /* Primary — green, brutalist offset shadow */
+  /* ── Buttons ──────────────────────────────────────────── */
   .btn-primary {
-    @apply relative inline-flex items-center gap-2 font-mono font-medium text-sm transition-all duration-150 cursor-pointer;
-    padding: 10px 20px;
+    @apply relative inline-flex items-center gap-2 text-sm font-semibold
+           transition-all duration-150 cursor-pointer select-none;
+    padding: 9px 18px;
     background: var(--green);
     color: var(--black);
-    border: 2px solid var(--green);
-    border-radius: 0;
-    box-shadow: 3px 3px 0px rgba(0,0,0,0.6);
-    letter-spacing: 0.02em;
+    border: 1px solid var(--green);
+    border-radius: 6px;
+    box-shadow: var(--shadow-brutal);
+    letter-spacing: 0.01em;
   }
   .btn-primary:hover:not(:disabled) {
     transform: translate(-1px, -1px);
-    box-shadow: 4px 4px 0px rgba(0,0,0,0.6);
+    box-shadow: 5px 5px 0px rgba(0, 229, 160, 0.25);
+    background: #00ffb3;
   }
   .btn-primary:active:not(:disabled) {
     transform: translate(1px, 1px);
-    box-shadow: 1px 1px 0px rgba(0,0,0,0.6);
+    box-shadow: 2px 2px 0px rgba(0, 229, 160, 0.20);
   }
   .btn-primary:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+    transform: none;
   }
 
-  /* Ghost — thin border, no fill */
   .btn-ghost {
-    @apply inline-flex items-center gap-2 font-mono font-medium text-sm transition-all duration-150 cursor-pointer;
+    @apply inline-flex items-center gap-2 text-sm font-medium
+           transition-all duration-150 cursor-pointer;
     padding: 8px 16px;
     background: transparent;
     color: var(--white-dim);
     border: 1px solid var(--border-strong);
-    border-radius: 0;
+    border-radius: 6px;
   }
   .btn-ghost:hover:not(:disabled) {
     color: var(--white);
-    border-color: var(--white-dim);
-    background: rgba(245, 242, 236, 0.05);
+    border-color: var(--border-strong);
+    background: rgba(250, 250, 250, 0.05);
   }
-  .btn-ghost:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
+  .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* Danger */
   .btn-danger {
-    @apply inline-flex items-center gap-2 font-mono font-medium text-sm transition-all duration-150 cursor-pointer;
+    @apply inline-flex items-center gap-2 text-sm font-medium
+           transition-all duration-150 cursor-pointer;
     padding: 8px 16px;
     background: transparent;
     color: var(--red);
-    border: 1px solid rgba(255,59,59,0.35);
-    border-radius: 0;
+    border: 1px solid rgba(248, 113, 113, 0.30);
+    border-radius: 6px;
   }
   .btn-danger:hover:not(:disabled) {
     background: var(--red-dim);
     border-color: var(--red);
-    box-shadow: 2px 2px 0px var(--red);
+    box-shadow: 0 0 12px var(--red-dim);
   }
 
-  /* ── Input ──────────────────────────────────────────────── */
+  /* ── Input ────────────────────────────────────────────── */
   .input-field {
-    @apply w-full text-sm outline-none transition-all duration-150 font-mono;
+    @apply w-full text-sm outline-none transition-all duration-150;
     padding: 10px 14px;
     background: var(--black-soft);
     border: 1px solid var(--border-strong);
-    border-radius: 0;
+    border-radius: 6px;
     color: var(--white);
     caret-color: var(--green);
+    font-family: inherit;
   }
   .input-field::placeholder {
     color: var(--white-muted);
-    font-style: italic;
   }
   .input-field:focus {
     border-color: var(--green);
-    box-shadow: 0 0 0 1px var(--green), 2px 2px 0px var(--green-dim);
-    outline: none;
+    box-shadow: 0 0 0 3px var(--green-dim);
   }
 
-  /* Terminal prompt input (search bars, chat) */
+  /* Terminal-feel input with left icon space */
   .input-terminal {
     @apply input-field;
-    background: var(--black);
-    border-color: var(--border);
-    padding-left: 32px;
-  }
-  .input-terminal:focus {
-    border-color: var(--green);
+    background: rgba(0,0,0,0.4);
+    padding-left: 36px;
   }
 
-  /* ── Badge ──────────────────────────────────────────────── */
+  /* ── Badge ────────────────────────────────────────────── */
   .badge {
-    @apply inline-flex items-center font-mono text-xs font-medium;
+    @apply inline-flex items-center text-xs font-semibold;
     padding: 2px 8px;
-    border-radius: 0;
-    letter-spacing: 0.05em;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
   }
+  .badge-work      { background: rgba(96,165,250,0.10); color:#60a5fa; border:1px solid rgba(96,165,250,0.25); }
+  .badge-personal  { background: var(--green-dim); color:var(--green); border:1px solid var(--green-border); }
+  .badge-invoice   { background: var(--amber-dim); color:var(--amber); border:1px solid rgba(251,191,36,0.25); }
+  .badge-social    { background: rgba(244,114,182,0.10); color:#f472b6; border:1px solid rgba(244,114,182,0.25); }
+  .badge-promotion { background: var(--red-dim); color:var(--red); border:1px solid rgba(248,113,113,0.25); }
+  .badge-security  { background: rgba(34,211,238,0.10); color:#22d3ee; border:1px solid rgba(34,211,238,0.25); }
+  .badge-ads       { @apply badge-promotion; }
 
-  /* Category badges — flat, no glow */
-  .badge-work {
-    background: rgba(96, 165, 250, 0.10);
-    color: #60a5fa;
-    border: 1px solid rgba(96, 165, 250, 0.25);
-  }
-  .badge-personal {
-    background: rgba(0, 255, 136, 0.10);
-    color: var(--green);
-    border: 1px solid var(--green-border);
-  }
-  .badge-invoice {
-    background: rgba(255, 184, 0, 0.10);
-    color: var(--amber);
-    border: 1px solid rgba(255, 184, 0, 0.25);
-  }
-  .badge-social {
-    background: rgba(244, 114, 182, 0.10);
-    color: #f472b6;
-    border: 1px solid rgba(244, 114, 182, 0.25);
-  }
-  .badge-promotion {
-    background: rgba(255, 59, 59, 0.10);
-    color: var(--red);
-    border: 1px solid rgba(255, 59, 59, 0.25);
-  }
-  .badge-security {
-    background: rgba(34, 211, 238, 0.10);
-    color: #22d3ee;
-    border: 1px solid rgba(34, 211, 238, 0.25);
-  }
-  .badge-ads {
-    @apply badge-promotion;
-  }
-
-  /* ── Priority ───────────────────────────────────────────── */
+  /* ── Priority ─────────────────────────────────────────── */
   .priority-high   { color: var(--red); }
   .priority-medium { color: var(--amber); }
   .priority-low    { color: var(--green); }
 
-  /* ── Sidebar item ───────────────────────────────────────── */
+  /* ── Sidebar item ─────────────────────────────────────── */
   .sidebar-item {
-    @apply flex items-center gap-3 text-sm font-mono font-medium transition-all duration-150 cursor-pointer w-full;
+    @apply flex items-center gap-3 text-sm font-medium
+           transition-all duration-150 cursor-pointer w-full;
     padding: 8px 12px;
     color: var(--white-dim);
+    border-radius: 6px;
     border: 1px solid transparent;
-    border-radius: 0;
-    letter-spacing: 0.01em;
   }
   .sidebar-item:hover {
     color: var(--white);
-    background: rgba(245, 242, 236, 0.04);
-    border-color: var(--border);
+    background: rgba(250, 250, 250, 0.05);
   }
   .sidebar-item.active {
     color: var(--green);
@@ -290,98 +245,66 @@ html, body {
     border-color: var(--green-border);
   }
 
-  /* ── Typing animation (AI chat) ─────────────────────────── */
+  /* ── Typing dots ──────────────────────────────────────── */
   .typing-dot {
-    @apply w-1.5 h-1.5;
-    background-color: var(--green);
-    border-radius: 0;
-    animation: typingBlink 1.2s infinite ease-in-out;
+    @apply w-2 h-2 rounded-full;
+    background: var(--green);
+    animation: typingPulse 1.4s infinite ease-in-out;
   }
   .typing-dot:nth-child(1) { animation-delay: 0s; }
   .typing-dot:nth-child(2) { animation-delay: 0.2s; }
   .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-  @keyframes typingBlink {
-    0%, 80%, 100% { opacity: 0.2; transform: scaleY(0.6); }
-    40%           { opacity: 1;   transform: scaleY(1); }
+  @keyframes typingPulse {
+    0%, 60%, 100% { opacity: 0.2; transform: scale(0.7); }
+    30%           { opacity: 1;   transform: scale(1); }
   }
 
-  /* ── Auth background ────────────────────────────────────── */
+  /* ── Auth page background ─────────────────────────────── */
   .auth-bg {
     background-color: var(--black);
     background-image:
-      repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 39px,
-        rgba(245, 242, 236, 0.03) 39px,
-        rgba(245, 242, 236, 0.03) 40px
-      ),
-      repeating-linear-gradient(
-        90deg,
-        transparent,
-        transparent 39px,
-        rgba(245, 242, 236, 0.03) 39px,
-        rgba(245, 242, 236, 0.03) 40px
-      );
+      radial-gradient(ellipse 60% 50% at 50% -10%, rgba(0,229,160,0.12), transparent),
+      radial-gradient(ellipse 40% 40% at 80% 80%, rgba(167,139,250,0.08), transparent);
   }
 
-  /* ── Gradient text — replaced with green underline style ── */
+  /* ── Gradient text ────────────────────────────────────── */
   .gradient-text {
-    color: var(--white);
-    position: relative;
-    display: inline-block;
-  }
-  .gradient-text::after {
-    content: '';
-    position: absolute;
-    left: 0; bottom: -2px;
-    width: 100%; height: 2px;
-    background: var(--green);
+    background: linear-gradient(135deg, var(--green) 0%, #00b4d8 50%, var(--violet) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
-  /* ── Terminal prefix ────────────────────────────────────── */
-  .terminal-prefix::before {
-    content: '> ';
-    color: var(--green);
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 700;
-  }
-
-  /* ── Section label (editorial uppercase) ───────────────── */
+  /* ── Section label ────────────────────────────────────── */
   .section-label {
-    @apply font-mono text-xs font-medium tracking-widest uppercase;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
     color: var(--white-muted);
   }
 
-  /* ── AI tag ─────────────────────────────────────────────── */
+  /* ── AI tag ───────────────────────────────────────────── */
   .ai-tag {
-    @apply font-mono text-xs font-bold;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
     color: var(--green);
     background: var(--green-dim);
     border: 1px solid var(--green-border);
-    padding: 1px 6px;
-    border-radius: 0;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
   }
 
-  /* ── Hash ID (git-log style) ────────────────────────────── */
-  .hash-id {
-    @apply font-mono text-xs;
-    color: var(--white-muted);
-    letter-spacing: 0.05em;
+  /* ── Terminal prompt prefix ───────────────────────────── */
+  .terminal-prefix {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--green);
+    font-size: 0.75rem;
+    font-weight: 700;
   }
-}
-
-/* ─── Utility overrides ──────────────────────────────────── */
-/* Remove all border-radius globally for brutalist feel */
-button, input, textarea, select, [class*="rounded"] {
-  border-radius: 0 !important;
-}
-
-/* Selection color */
-::selection {
-  background: var(--green);
-  color: var(--black);
 }

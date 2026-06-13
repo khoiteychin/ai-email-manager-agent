@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { Input, Button } from '@/components/ui';
+import { Mail, Lock, Eye, EyeOff, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
@@ -13,10 +14,8 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
     setConfirmed(new URLSearchParams(window.location.search).get('confirmed') === 'true');
   }, []);
 
@@ -25,7 +24,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(form.email, form.password);
-      toast.success('Access granted.');
+      toast.success('Welcome back!');
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || 'Access denied.');
     } finally {
@@ -36,63 +35,43 @@ export default function LoginPage() {
   return (
     <div className="auth-bg min-h-screen flex items-center justify-center p-4">
       <motion.div
-        initial={{ opacity: 0, y: 16 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: 'easeOut' }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
         className="w-full max-w-md"
       >
-        {/* ── Terminal header ── */}
-        <div className="mb-6">
+        {/* Brand */}
+        <div className="text-center mb-8">
           <div
-            className="font-mono text-xs mb-1"
-            style={{ color: 'var(--green)' }}
+            className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{
+              background: 'linear-gradient(135deg, var(--green) 0%, #00b4d8 100%)',
+              boxShadow: '0 0 24px var(--green-glow)',
+            }}
           >
-            $ ./login --auth firebase
+            <Zap className="w-6 h-6" style={{ color: 'var(--black)' }} />
           </div>
-          <h1
-            className="font-editorial text-4xl font-bold leading-none"
-            style={{ color: 'var(--white)' }}
-          >
-            Mail<span style={{ color: 'var(--green)' }}>OS</span>
+          <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--white)' }}>
+            Welcome to{' '}
+            <span className="gradient-text">MailOS</span>
           </h1>
-          <p
-            className="font-mono text-xs mt-2"
-            style={{ color: 'var(--white-muted)' }}
-          >
+          <p className="text-sm" style={{ color: 'var(--white-muted)' }}>
             {confirmed
-              ? '✓ email confirmed — sign in to continue'
-              : 'AI-powered email management system'}
+              ? '✓ Email confirmed — sign in to continue'
+              : 'AI-powered email management'}
           </p>
         </div>
 
-        {/* ── Auth card — brutalist border ── */}
+        {/* Card */}
         <div
           className="p-8"
           style={{
             background: 'var(--black-card)',
-            border: '2px solid var(--border-strong)',
-            boxShadow: '6px 6px 0px rgba(0,255,136,0.12)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: '12px',
+            boxShadow: '0 0 0 1px var(--border), 0 8px 32px rgba(0,0,0,0.4)',
           }}
         >
-          {/* Card header bar */}
-          <div
-            className="flex items-center gap-2 mb-6 pb-4 border-b"
-            style={{ borderColor: 'var(--border)' }}
-          >
-            <span className="w-2 h-2 bg-red-500 inline-block" />
-            <span className="w-2 h-2 bg-yellow-400 inline-block" />
-            <span
-              className="w-2 h-2 inline-block"
-              style={{ background: 'var(--green)' }}
-            />
-            <span
-              className="font-mono text-xs ml-2"
-              style={{ color: 'var(--white-muted)' }}
-            >
-              authenticate.sh
-            </span>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-5">
             <Input
               label="Email Address"
@@ -101,22 +80,16 @@ export default function LoginPage() {
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               required
-              icon="@"
+              icon={<Mail className="w-4 h-4" />}
             />
 
             <div className="space-y-1.5">
-              <label
-                className="block font-mono text-xs font-medium tracking-wide uppercase"
-                style={{ color: 'var(--white-muted)' }}
-              >
+              <label className="block text-xs font-semibold" style={{ color: 'var(--white-muted)' }}>
                 Password
               </label>
               <div className="relative">
-                <span
-                  className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm select-none"
-                  style={{ color: 'var(--green)' }}
-                >
-                  #
+                <span className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--white-muted)' }}>
+                  <Lock className="w-4 h-4" />
                 </span>
                 <input
                   type={showPass ? 'text' : 'password'}
@@ -124,52 +97,47 @@ export default function LoginPage() {
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   required
-                  className="input-field pl-9 pr-12"
+                  className="input-field pl-10 pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
                   style={{ color: 'var(--white-muted)' }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--green)')}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--white)')}
                   onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = 'var(--white-muted)')}
                 >
-                  {showPass ? 'hide' : 'show'}
+                  {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
 
-            <Button
-              type="submit"
-              loading={loading}
-              className="w-full justify-center"
-            >
-              {loading ? 'authenticating...' : '$ sign-in --submit'}
+            <Button type="submit" loading={loading} className="w-full justify-center">
+              {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </form>
 
-          {/* Register link */}
-          <div className="mt-6 pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
-            <p className="font-mono text-xs" style={{ color: 'var(--white-muted)' }}>
-              no account?{' '}
+          <div className="mt-6 pt-4 border-t text-center" style={{ borderColor: 'var(--border)' }}>
+            <p className="text-sm" style={{ color: 'var(--white-muted)' }}>
+              Don&apos;t have an account?{' '}
               <Link
                 href="/register"
-                className="font-medium underline underline-offset-2 transition-colors"
+                className="font-semibold transition-colors"
                 style={{ color: 'var(--green)' }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLAnchorElement).style.textDecoration = 'underline')}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLAnchorElement).style.textDecoration = 'none')}
               >
-                ./register --new
+                Create account
               </Link>
             </p>
           </div>
         </div>
 
-        {/* ── Bottom status bar ── */}
-        <div
-          className="mt-3 flex items-center justify-between font-mono text-xs px-2"
-          style={{ color: 'var(--white-muted)' }}
-        >
-          <span>v1.0.0</span>
-          <span style={{ color: 'var(--green)' }}>● system ready</span>
+        {/* Mono tag */}
+        <div className="mt-4 text-center">
+          <span className="font-mono text-xs" style={{ color: 'var(--white-muted)' }}>
+            v1.0.0 · secured by Firebase Auth
+          </span>
         </div>
       </motion.div>
     </div>

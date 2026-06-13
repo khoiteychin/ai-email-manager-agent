@@ -1,281 +1,387 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ─── CSS Custom Properties ─────────────────────────────────── */
+/* ─── Design Tokens: Terminal × Brutalism ─────────────────── */
 :root {
-  --bg-primary: #070c18;
-  --bg-secondary: #0f172a;
-  --bg-card: #1e293b;
-  --bg-elevated: #273348;
-  --border: rgba(99, 102, 241, 0.15);
-  --border-hover: rgba(99, 102, 241, 0.5);
-  --text-primary: #e2e8f0;
-  --text-secondary: rgba(226, 232, 240, 0.70);
-  --text-muted: rgba(226, 232, 240, 0.40);
-  --accent: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.12);
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
+  /* Core palette */
+  --black:          #080808;
+  --black-soft:     #111111;
+  --black-card:     #181818;
+  --black-elevated: #222222;
 
-  --bg-sidebar: #0f172a;
-  --text-sidebar-logo: #e2e8f0;
-  --text-sidebar-user: #e2e8f0;
-  --theme-gradient: linear-gradient(135deg, #6366f1, #4f46e5);
-  --bg-glass: rgba(15, 23, 42, 0.75);
+  --white:          #F5F2EC;
+  --white-dim:      rgba(245, 242, 236, 0.65);
+  --white-muted:    rgba(245, 242, 236, 0.35);
 
-  /* Icon colors */
-  --icon-default: rgba(148, 163, 184, 1);    /* slate-400 — icon mặc định */
-  --icon-active: #6366f1;                    /* indigo — icon đang active */
-  --icon-muted: rgba(100, 116, 139, 1);      /* slate-500 — icon phụ / placeholder */
-  --icon-accent: #6366f1;                    /* dùng cho stat card icons */
+  /* Accent — electric green (AI elements) */
+  --green:          #00FF88;
+  --green-dim:      rgba(0, 255, 136, 0.12);
+  --green-border:   rgba(0, 255, 136, 0.30);
+
+  /* Accent 2 — amber (priority / warnings) */
+  --amber:          #FFB800;
+  --amber-dim:      rgba(255, 184, 0, 0.12);
+
+  /* Accent 3 — red (danger) */
+  --red:            #FF3B3B;
+  --red-dim:        rgba(255, 59, 59, 0.12);
+
+  /* Border — hard 1px, no blur */
+  --border:         rgba(245, 242, 236, 0.10);
+  --border-strong:  rgba(245, 242, 236, 0.22);
+
+  /* Semantic aliases */
+  --bg-primary:     var(--black);
+  --bg-secondary:   var(--black-soft);
+  --bg-card:        var(--black-card);
+  --bg-elevated:    var(--black-elevated);
+  --text-primary:   var(--white);
+  --text-secondary: var(--white-dim);
+  --text-muted:     var(--white-muted);
+  --accent:         var(--green);
+  --accent-glow:    var(--green-dim);
+  --success:        var(--green);
+  --warning:        var(--amber);
+  --danger:         var(--red);
+  --bg-sidebar:     var(--black-soft);
+
+  /* Brutalist shadow offset */
+  --shadow-brutal:  3px 3px 0px rgba(245, 242, 236, 0.15);
+  --shadow-brutal-green: 3px 3px 0px var(--green);
+  --shadow-brutal-amber: 3px 3px 0px var(--amber);
 }
 
-html.light {
-  --bg-primary: #f8f7f4;
-  --bg-secondary: #f1f0ec;
-  --bg-card: #ffffff;
-  --bg-elevated: #e8e6e0;
-  --border: rgba(30, 41, 59, 0.10);
-  --border-hover: rgba(99, 102, 241, 0.40);
-  --text-primary: #1e293b;
-  --text-secondary: rgba(30, 41, 59, 0.65);
-  --text-muted: rgba(30, 41, 59, 0.40);
-  --accent: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.08);
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-
-  --bg-sidebar: #f1f0ec;
-  --text-sidebar-logo: #1e293b;
-  --text-sidebar-user: #1e293b;
-  --theme-gradient: linear-gradient(135deg, #6366f1, #4f46e5);
-  --bg-glass: rgba(255, 255, 255, 0.72);
-
-  /* Icon colors */
-  --icon-default: rgba(71, 85, 105, 1);      /* slate-600 — icon mặc định */
-  --icon-active: #4f46e5;                    /* indigo-600 — icon đang active */
-  --icon-muted: rgba(148, 163, 184, 1);      /* slate-400 — icon phụ / placeholder */
-  --icon-accent: #4f46e5;
-}
-
-html.dark {
-  --bg-primary: #070c18;
-  --bg-secondary: #0f172a;
-  --bg-card: #1e293b;
-  --bg-elevated: #273348;
-  --border: rgba(99, 102, 241, 0.15);
-  --border-hover: rgba(99, 102, 241, 0.5);
-  --text-primary: #e2e8f0;
-  --text-secondary: rgba(226, 232, 240, 0.70);
-  --text-muted: rgba(226, 232, 240, 0.40);
-  --accent: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.12);
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-
-  --bg-sidebar: #0f172a;
-  --text-sidebar-logo: #e2e8f0;
-  --text-sidebar-user: #e2e8f0;
-  --theme-gradient: linear-gradient(135deg, #6366f1, #4f46e5);
-  --bg-glass: rgba(15, 23, 42, 0.75);
-
-  /* Icon colors */
-  --icon-default: rgba(148, 163, 184, 1);
-  --icon-active: #6366f1;
-  --icon-muted: rgba(100, 116, 139, 1);
-  --icon-accent: #6366f1;
-}
-
-/* ─── Base Styles ────────────────────────────────────────────── */
-* {
+/* ─── Base Reset ─────────────────────────────────────────── */
+*, *::before, *::after {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
 }
 
-html,
-body {
+html, body {
   max-width: 100vw;
   overflow-x: hidden;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: 'Inter', system-ui, sans-serif;
+  background-color: var(--black);
+  color: var(--white);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'kern' 1, 'liga' 1;
 }
 
-/* Scrollbar */
+/* Monospace utility */
+.font-mono {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Playfair for editorial headings */
+.font-editorial {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: var(--black-soft);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-hover);
-  border-radius: 3px;
+  background: var(--border-strong);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
+  background: var(--green);
 }
 
-/* ─── Component Utilities ────────────────────────────────────── */
+/* ─── Component Classes ──────────────────────────────────── */
 @layer components {
-  /* Glass card */
+
+  /* ── Card: hard border, no blur, no radius ──────────────── */
+  .card {
+    background: var(--black-card);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .card-hover {
+    @apply card cursor-pointer;
+  }
+  .card-hover:hover {
+    border-color: var(--green);
+    box-shadow: var(--shadow-brutal-green);
+  }
+
+  /* Brutalist card — thick border + offset shadow */
+  .card-brutal {
+    background: var(--black-card);
+    border: 2px solid var(--border-strong);
+    border-radius: 0;
+    box-shadow: var(--shadow-brutal);
+  }
+
+  /* Keep .glass for backwards compat — map to .card */
   .glass {
-    background: var(--bg-glass);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--border);
-    border-radius: 16px;
+    @apply card;
   }
-
   .glass-hover {
-    @apply glass transition-all duration-200;
-  }
-  .glass-hover:hover {
-    border-color: var(--border-hover);
-    box-shadow: 0 0 20px var(--accent-glow);
+    @apply card-hover;
   }
 
-  /* Gradient text */
-  .gradient-text {
-    background: var(--theme-gradient);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  /* Glow button */
+  /* ── Buttons ────────────────────────────────────────────── */
+  /* Primary — green, brutalist offset shadow */
   .btn-primary {
-    @apply relative inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200;
-    background: var(--theme-gradient);
-    color: white;
-    box-shadow: 0 4px 15px var(--accent-glow);
+    @apply relative inline-flex items-center gap-2 font-mono font-medium text-sm transition-all duration-150 cursor-pointer;
+    padding: 10px 20px;
+    background: var(--green);
+    color: var(--black);
+    border: 2px solid var(--green);
+    border-radius: 0;
+    box-shadow: 3px 3px 0px rgba(0,0,0,0.6);
+    letter-spacing: 0.02em;
   }
-  .btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px var(--accent-glow);
+  .btn-primary:hover:not(:disabled) {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0px rgba(0,0,0,0.6);
   }
-  .btn-primary:active {
-    transform: translateY(0);
+  .btn-primary:active:not(:disabled) {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0px rgba(0,0,0,0.6);
+  }
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
+  /* Ghost — thin border, no fill */
   .btn-ghost {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200;
-    color: var(--text-secondary);
-    border: 1px solid var(--border);
+    @apply inline-flex items-center gap-2 font-mono font-medium text-sm transition-all duration-150 cursor-pointer;
+    padding: 8px 16px;
+    background: transparent;
+    color: var(--white-dim);
+    border: 1px solid var(--border-strong);
+    border-radius: 0;
   }
-  .btn-ghost:hover {
-    border-color: var(--border-hover);
-    color: var(--text-primary);
-    background: var(--accent-glow);
+  .btn-ghost:hover:not(:disabled) {
+    color: var(--white);
+    border-color: var(--white-dim);
+    background: rgba(245, 242, 236, 0.05);
+  }
+  .btn-ghost:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
-  /* Input */
+  /* Danger */
+  .btn-danger {
+    @apply inline-flex items-center gap-2 font-mono font-medium text-sm transition-all duration-150 cursor-pointer;
+    padding: 8px 16px;
+    background: transparent;
+    color: var(--red);
+    border: 1px solid rgba(255,59,59,0.35);
+    border-radius: 0;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--red-dim);
+    border-color: var(--red);
+    box-shadow: 2px 2px 0px var(--red);
+  }
+
+  /* ── Input ──────────────────────────────────────────────── */
   .input-field {
-    @apply w-full px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    color: var(--text-primary);
+    @apply w-full text-sm outline-none transition-all duration-150 font-mono;
+    padding: 10px 14px;
+    background: var(--black-soft);
+    border: 1px solid var(--border-strong);
+    border-radius: 0;
+    color: var(--white);
+    caret-color: var(--green);
   }
   .input-field::placeholder {
-    color: var(--text-muted);
+    color: var(--white-muted);
+    font-style: italic;
   }
   .input-field:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-glow);
+    border-color: var(--green);
+    box-shadow: 0 0 0 1px var(--green), 2px 2px 0px var(--green-dim);
+    outline: none;
   }
 
-  /* Badge */
+  /* Terminal prompt input (search bars, chat) */
+  .input-terminal {
+    @apply input-field;
+    background: var(--black);
+    border-color: var(--border);
+    padding-left: 32px;
+  }
+  .input-terminal:focus {
+    border-color: var(--green);
+  }
+
+  /* ── Badge ──────────────────────────────────────────────── */
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center font-mono text-xs font-medium;
+    padding: 2px 8px;
+    border-radius: 0;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
   }
 
-  /* Category badges */
+  /* Category badges — flat, no glow */
   .badge-work {
-    background: rgba(59, 130, 246, 0.15);
+    background: rgba(96, 165, 250, 0.10);
     color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    border: 1px solid rgba(96, 165, 250, 0.25);
   }
   .badge-personal {
-    background: rgba(16, 185, 129, 0.15);
-    color: #34d399;
-    border: 1px solid rgba(16, 185, 129, 0.3);
-  }
-  .badge-ads {
-    background: rgba(245, 158, 11, 0.15);
-    color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: rgba(0, 255, 136, 0.10);
+    color: var(--green);
+    border: 1px solid var(--green-border);
   }
   .badge-invoice {
-    background: rgba(168, 85, 247, 0.15);
-    color: #c084fc;
-    border: 1px solid rgba(168, 85, 247, 0.3);
+    background: rgba(255, 184, 0, 0.10);
+    color: var(--amber);
+    border: 1px solid rgba(255, 184, 0, 0.25);
   }
   .badge-social {
-    background: rgba(236, 72, 153, 0.15);
+    background: rgba(244, 114, 182, 0.10);
     color: #f472b6;
-    border: 1px solid rgba(236, 72, 153, 0.3);
+    border: 1px solid rgba(244, 114, 182, 0.25);
   }
   .badge-promotion {
-    background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: rgba(255, 59, 59, 0.10);
+    color: var(--red);
+    border: 1px solid rgba(255, 59, 59, 0.25);
   }
   .badge-security {
-    background: rgba(6, 182, 212, 0.15);
+    background: rgba(34, 211, 238, 0.10);
     color: #22d3ee;
-    border: 1px solid rgba(6, 182, 212, 0.3);
+    border: 1px solid rgba(34, 211, 238, 0.25);
+  }
+  .badge-ads {
+    @apply badge-promotion;
   }
 
-  /* Priority */
-  .priority-high { color: #ef4444; }
-  .priority-medium { color: #f59e0b; }
-  .priority-low { color: #10b981; }
+  /* ── Priority ───────────────────────────────────────────── */
+  .priority-high   { color: var(--red); }
+  .priority-medium { color: var(--amber); }
+  .priority-low    { color: var(--green); }
 
-  /* Sidebar item */
+  /* ── Sidebar item ───────────────────────────────────────── */
   .sidebar-item {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer;
-    color: var(--text-secondary);
+    @apply flex items-center gap-3 text-sm font-mono font-medium transition-all duration-150 cursor-pointer w-full;
+    padding: 8px 12px;
+    color: var(--white-dim);
+    border: 1px solid transparent;
+    border-radius: 0;
+    letter-spacing: 0.01em;
   }
   .sidebar-item:hover {
-    background: var(--accent-glow);
-    color: var(--accent);
+    color: var(--white);
+    background: rgba(245, 242, 236, 0.04);
+    border-color: var(--border);
   }
   .sidebar-item.active {
-    background: var(--accent-glow);
-    color: var(--accent);
-    border: 1px solid var(--accent);
+    color: var(--green);
+    background: var(--green-dim);
+    border-color: var(--green-border);
   }
 
-  /* Typing dots animation */
+  /* ── Typing animation (AI chat) ─────────────────────────── */
   .typing-dot {
-    @apply w-2 h-2 rounded-full;
-    background-color: var(--accent);
-    animation: typingBounce 1.4s infinite ease-in-out;
+    @apply w-1.5 h-1.5;
+    background-color: var(--green);
+    border-radius: 0;
+    animation: typingBlink 1.2s infinite ease-in-out;
   }
   .typing-dot:nth-child(1) { animation-delay: 0s; }
   .typing-dot:nth-child(2) { animation-delay: 0.2s; }
   .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-  @keyframes typingBounce {
-    0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-    40% { transform: scale(1.2); opacity: 1; }
+  @keyframes typingBlink {
+    0%, 80%, 100% { opacity: 0.2; transform: scaleY(0.6); }
+    40%           { opacity: 1;   transform: scaleY(1); }
+  }
+
+  /* ── Auth background ────────────────────────────────────── */
+  .auth-bg {
+    background-color: var(--black);
+    background-image:
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 39px,
+        rgba(245, 242, 236, 0.03) 39px,
+        rgba(245, 242, 236, 0.03) 40px
+      ),
+      repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 39px,
+        rgba(245, 242, 236, 0.03) 39px,
+        rgba(245, 242, 236, 0.03) 40px
+      );
+  }
+
+  /* ── Gradient text — replaced with green underline style ── */
+  .gradient-text {
+    color: var(--white);
+    position: relative;
+    display: inline-block;
+  }
+  .gradient-text::after {
+    content: '';
+    position: absolute;
+    left: 0; bottom: -2px;
+    width: 100%; height: 2px;
+    background: var(--green);
+  }
+
+  /* ── Terminal prefix ────────────────────────────────────── */
+  .terminal-prefix::before {
+    content: '> ';
+    color: var(--green);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+  }
+
+  /* ── Section label (editorial uppercase) ───────────────── */
+  .section-label {
+    @apply font-mono text-xs font-medium tracking-widest uppercase;
+    color: var(--white-muted);
+  }
+
+  /* ── AI tag ─────────────────────────────────────────────── */
+  .ai-tag {
+    @apply font-mono text-xs font-bold;
+    color: var(--green);
+    background: var(--green-dim);
+    border: 1px solid var(--green-border);
+    padding: 1px 6px;
+    border-radius: 0;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ── Hash ID (git-log style) ────────────────────────────── */
+  .hash-id {
+    @apply font-mono text-xs;
+    color: var(--white-muted);
+    letter-spacing: 0.05em;
   }
 }
 
-/* ─── Mesh gradient bg for auth pages ───────────────────────── */
-.auth-bg {
-  background-color: var(--bg-primary);
-  background-image:
-    radial-gradient(ellipse at 20% 50%, var(--accent-glow) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, var(--accent-glow) 0%, transparent 50%),
-    radial-gradient(ellipse at 60% 80%, var(--accent-glow) 0%, transparent 50%);
+/* ─── Utility overrides ──────────────────────────────────── */
+/* Remove all border-radius globally for brutalist feel */
+button, input, textarea, select, [class*="rounded"] {
+  border-radius: 0 !important;
+}
+
+/* Selection color */
+::selection {
+  background: var(--green);
+  color: var(--black);
 }

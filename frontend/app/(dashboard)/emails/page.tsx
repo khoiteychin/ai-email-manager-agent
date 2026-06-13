@@ -3,26 +3,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emailsApi, userApi } from '@/lib/api';
-import { Card, CategoryBadge, PriorityDot, Spinner, EmptyState } from '@/components/ui';
-import {
-  Mail,
-  Search,
-  Star,
-  StarOff,
-  Filter,
-  ChevronLeft,
-  ChevronRight,
-  Circle,
-  RefreshCw,
-  Bell,
-} from 'lucide-react';
+import { CategoryBadge, PriorityDot, Spinner, EmptyState } from '@/components/ui';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 
 const CATEGORIES = ['All', 'Work', 'Personal', 'Social', 'Invoice', 'Promotion', 'Security'];
 
-// Bug #2 fix: Updated interface to match backend _email_to_dict() fields
 interface Email {
   id: string;
   subject: string;
@@ -46,10 +33,8 @@ export default function EmailsPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [page, setPage] = useState(1);
-  // Bug #4: last fetch timestamp for polling since=
   const [lastFetchTime, setLastFetchTime] = useState<string>(new Date().toISOString());
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  // Bug #4: new email banner state
   const [newEmailBanner, setNewEmailBanner] = useState<{ count: number; emails: Array<{ subject: string; sender: string }> } | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -73,10 +58,9 @@ export default function EmailsPage() {
       });
       setEmails(res.data.data);
       setMeta(res.data.meta);
-      const now = new Date().toISOString();
-      setLastFetchTime(now);
+      setLastFetchTime(new Date().toISOString());
       setLastRefresh(new Date());
-      setNewEmailBanner(null); // Clear banner after reload
+      setNewEmailBanner(null);
       fetchStats();
     } catch (err) {
       console.error(err);
@@ -90,48 +74,37 @@ export default function EmailsPage() {
     return () => clearTimeout(timer);
   }, [fetchEmails]);
 
-  // Bug #4: Lightweight polling every 30 seconds – only queries DB, no Gmail API call
+  // Polling every 30s
   useEffect(() => {
-    // Start polling after initial load
     pollingRef.current = setInterval(async () => {
       try {
         const res = await emailsApi.checkNew(lastFetchTime);
         const { count, emails: newEmails } = res.data;
-        if (count > 0) {
-          // Show banner instead of auto-reloading
-          setNewEmailBanner({ count, emails: newEmails.slice(0, 3) });
-        }
-      } catch {
-        // Polling errors are non-critical, ignore silently
-      }
-    }, 30_000); // Every 30 seconds
-
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
+        if (count > 0) setNewEmailBanner({ count, emails: newEmails.slice(0, 3) });
+      } catch { /* non-critical */ }
+    }, 30_000);
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, [lastFetchTime]);
 
-  // Bug #3 fix: manual sync using incremental Gmail History API
   const handleSync = async () => {
     setSyncing(true);
     try {
       const res = await emailsApi.sync();
       const newCount = res.data.newEmails ?? 0;
       if (newCount > 0) {
-        toast.success(`✨ ${newCount} new email${newCount > 1 ? 's' : ''} synced!`);
+        toast.success(`${newCount} new email${newCount > 1 ? 's' : ''} synced`);
         await fetchEmails();
       } else {
-        toast.success('Inbox is up to date');
+        toast.success('Inbox up to date');
         setLastRefresh(new Date());
       }
     } catch {
-      toast.error('Sync failed. Please try again.');
+      toast.error('Sync failed');
     } finally {
       setSyncing(false);
     }
   };
 
-  // Load new emails when banner is clicked
   const loadNewEmails = async () => {
     setNewEmailBanner(null);
     await fetchEmails();
@@ -140,212 +113,244 @@ export default function EmailsPage() {
   const toggleStar = async (e: React.MouseEvent, emailId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setEmails((prev) =>
-      prev.map((em) => (em.id === emailId ? { ...em, isStarred: !em.isStarred } : em))
-    );
+    setEmails((prev) => prev.map((em) => (em.id === emailId ? { ...em, isStarred: !em.isStarred } : em)));
     await emailsApi.toggleStar(emailId);
+  };
+
+  const getCategoryCount = (cat: string) => {
+    if (cat === 'All') return meta.total || 0;
+    const item = stats?.categoryBreakdown?.find((b) => b.category.toLowerCase() === cat.toLowerCase());
+    return item ? item.count : 0;
   };
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <Mail className="w-6 h-6 text-blue-400" />
-            Emails
+          <div className="font-mono text-xs mb-1" style={{ color: 'var(--green)' }}>
+            ~/emails
+          </div>
+          <h1 className="font-editorial text-3xl font-bold leading-none" style={{ color: 'var(--white)' }}>
+            Inbox
           </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
-            {meta.total} emails total
+          <p className="font-mono text-xs mt-1.5" style={{ color: 'var(--white-muted)' }}>
+            {meta.total} messages
             {lastRefresh && (
-              <span className="ml-2">
-                · Updated {formatDistanceToNow(lastRefresh, { addSuffix: true })}
-              </span>
+              <span> · synced {formatDistanceToNow(lastRefresh, { addSuffix: true })}</span>
             )}
           </p>
         </div>
 
-        {/* Manual Refresh button */}
+        {/* Sync button — brutalist */}
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 disabled:opacity-50"
+          className="font-mono text-xs px-4 py-2 transition-all duration-150 disabled:opacity-40 flex items-center gap-2"
           style={{
-            background: 'var(--accent-glow)',
-            border: '1px solid var(--border)',
-            color: 'var(--accent)',
+            background: syncing ? 'var(--green-dim)' : 'transparent',
+            border: '1px solid var(--green-border)',
+            color: 'var(--green)',
+            boxShadow: syncing ? 'none' : '2px 2px 0px rgba(0,255,136,0.2)',
           }}
         >
-          <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'Syncing...' : 'Refresh'}
+          <span className={syncing ? 'animate-spin inline-block' : ''}>⟳</span>
+          {syncing ? 'syncing...' : '$ sync'}
         </button>
       </div>
 
-      {/* Bug #4: New Email Banner – shown when polling detects new emails */}
+      {/* ── New Email Banner ── */}
       <AnimatePresence>
         {newEmailBanner && (
           <motion.div
-            initial={{ opacity: 0, y: -12, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: 'auto' }}
-            exit={{ opacity: 0, y: -12, height: 0 }}
-            transition={{ duration: 0.25 }}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
           >
             <button
               onClick={loadNewEmails}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 hover:brightness-110"
+              className="w-full flex items-center justify-between px-4 py-3 font-mono text-xs transition-all"
               style={{
-                background: 'var(--theme-gradient)',
-                border: '1px solid var(--border)',
-                color: 'white',
+                background: 'var(--green-dim)',
+                border: '1px solid var(--green)',
+                color: 'var(--green)',
+                boxShadow: '3px 3px 0px rgba(0,255,136,0.15)',
               }}
             >
-              <div className="flex items-center gap-2">
-                <Bell className="w-4 h-4 text-white animate-pulse" />
-                <span>
-                  {newEmailBanner.count} new email{newEmailBanner.count > 1 ? 's' : ''} arrived
-                  {newEmailBanner.emails.length > 0 && (
-                    <span style={{ color: 'rgba(255,255,255,0.7)' }}>
-                      {' '}– {newEmailBanner.emails[0].subject}
-                      {newEmailBanner.count > 1 && ` +${newEmailBanner.count - 1} more`}
-                    </span>
-                  )}
-                </span>
-              </div>
-              <span className="text-xs underline text-white">Load now →</span>
+              <span>
+                ● {newEmailBanner.count} new email{newEmailBanner.count > 1 ? 's' : ''}
+                {newEmailBanner.emails[0] && ` — "${newEmailBanner.emails[0].subject}"`}
+              </span>
+              <span>load now →</span>
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Filters */}
-      <div className="glass p-4 space-y-4">
+      {/* ── Filters ── */}
+      <div
+        className="p-4 space-y-3"
+        style={{ background: 'var(--black-card)', border: '1px solid var(--border)' }}
+      >
+        {/* Search — terminal prompt style */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+          <span
+            className="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm font-bold select-none"
+            style={{ color: 'var(--green)' }}
+          >
+            /
+          </span>
           <input
             type="text"
-            placeholder="Search emails..."
+            placeholder="search emails..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="input-field pl-10 w-full"
+            className="input-field pl-8 w-full"
+            style={{ background: 'var(--black)' }}
           />
         </div>
 
-        <div className="flex items-center gap-1 flex-wrap">
-          <Filter className="w-3.5 h-3.5 mr-1" style={{ color: 'var(--text-secondary)' }} />
-          {(() => {
-            const getCategoryCount = (cat: string) => {
-              if (cat === 'All') return meta.total || 0;
-              const item = stats?.categoryBreakdown?.find(
-                (b) => b.category.toLowerCase() === cat.toLowerCase()
-              );
-              return item ? item.count : 0;
-            };
-            return CATEGORIES.map((cat) => (
+        {/* Category filter — monospace tags */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="font-mono text-xs mr-1" style={{ color: 'var(--white-muted)' }}>filter:</span>
+          {CATEGORIES.map((cat) => {
+            const isActive = category === cat;
+            return (
               <button
                 key={cat}
                 onClick={() => { setCategory(cat); setPage(1); }}
-                className="px-3 py-1 rounded-full text-xs font-medium transition-all duration-200 flex items-center gap-1.5"
+                className="font-mono text-xs px-2 py-1 transition-all duration-100 flex items-center gap-1.5"
                 style={{
-                  background: category === cat ? 'var(--accent-glow)' : 'var(--bg-secondary)',
-                  border: `1px solid ${category === cat ? 'var(--accent)' : 'var(--border)'}`,
-                  color: category === cat ? 'var(--accent)' : 'var(--text-secondary)',
+                  background: isActive ? 'var(--green)' : 'var(--black-elevated)',
+                  border: `1px solid ${isActive ? 'var(--green)' : 'var(--border)'}`,
+                  color: isActive ? 'var(--black)' : 'var(--white-dim)',
+                  fontWeight: isActive ? '700' : '400',
                 }}
               >
-                <span>{cat}</span>
+                {cat}
                 <span
-                  className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                  className="text-[10px] px-1"
                   style={{
-                    background: category === cat ? 'var(--accent)' : 'var(--bg-elevated)',
-                    color: category === cat ? 'white' : 'var(--text-muted)',
+                    background: isActive ? 'rgba(0,0,0,0.2)' : 'var(--black-soft)',
+                    color: isActive ? 'var(--black)' : 'var(--white-muted)',
                   }}
                 >
                   {getCategoryCount(cat)}
                 </span>
               </button>
-            ));
-          })()}
+            );
+          })}
         </div>
       </div>
 
-      {/* Email list */}
+      {/* ── Email List ── */}
       {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner />
-        </div>
+        <div className="flex justify-center py-20"><Spinner /></div>
       ) : emails.length === 0 ? (
         <EmptyState
-          icon={<Mail className="w-8 h-8" />}
+          icon="✉"
           title="No emails found"
-          description="Try adjusting your search or filters, or click Refresh to sync Gmail"
+          description="Try adjusting your search or filters, or click sync to fetch from Gmail"
         />
       ) : (
-        <div className="space-y-2">
+        <div
+          style={{
+            border: '1px solid var(--border)',
+            background: 'var(--black-card)',
+          }}
+        >
+          {/* Table header */}
+          <div
+            className="grid font-mono text-xs px-4 py-2 border-b"
+            style={{
+              gridTemplateColumns: '16px 1fr 180px 80px 80px 32px',
+              gap: '12px',
+              borderColor: 'var(--border)',
+              color: 'var(--white-muted)',
+              background: 'var(--black-soft)',
+            }}
+          >
+            <span></span>
+            <span>SUBJECT / SENDER</span>
+            <span>SUMMARY</span>
+            <span>LABEL</span>
+            <span>TIME</span>
+            <span></span>
+          </div>
+
           <AnimatePresence>
             {emails.map((email, i) => (
               <motion.div
                 key={email.id}
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ delay: i * 0.03 }}
+                transition={{ delay: i * 0.02 }}
               >
                 <Link href={`/emails/${email.id}`}>
                   <div
-                    className="glass-hover p-4 flex items-start gap-3 group"
-                    style={{ borderRadius: '12px' }}
+                    className="grid items-center px-4 py-3 border-b group transition-all duration-100"
+                    style={{
+                      gridTemplateColumns: '16px 1fr 180px 80px 80px 32px',
+                      gap: '12px',
+                      borderColor: 'var(--border)',
+                      background: email.isRead ? 'transparent' : 'rgba(0,255,136,0.025)',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLDivElement).style.background = 'rgba(245,242,236,0.04)';
+                      (e.currentTarget as HTMLDivElement).style.borderLeft = '2px solid var(--green)';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLDivElement).style.background = email.isRead ? 'transparent' : 'rgba(0,255,136,0.025)';
+                      (e.currentTarget as HTMLDivElement).style.borderLeft = '';
+                    }}
                   >
-                    <div className="mt-1.5 flex-shrink-0">
-                      <Circle
-                        className="w-2 h-2"
-                        fill={email.isRead ? 'transparent' : 'var(--accent)'}
-                        style={{ color: email.isRead ? 'var(--border)' : 'var(--accent)' }}
+                    {/* Unread indicator */}
+                    <div className="flex-shrink-0">
+                      <div
+                        className="w-1.5 h-1.5"
+                        style={{ background: email.isRead ? 'transparent' : 'var(--green)' }}
                       />
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span
-                          className="text-sm font-semibold truncate flex-1"
-                          style={{ color: email.isRead ? 'var(--text-muted)' : 'var(--text-primary)' }}
-                        >
-                          {email.subject || '(No subject)'}
-                        </span>
-                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
-                          {email.receivedAt
-                            ? formatDistanceToNow(new Date(email.receivedAt), { addSuffix: true })
-                            : '—'}
-                        </span>
+                    {/* Subject + sender */}
+                    <div className="min-w-0">
+                      <div
+                        className="text-sm font-medium truncate"
+                        style={{ color: email.isRead ? 'var(--white-dim)' : 'var(--white)' }}
+                      >
+                        {email.subject || '(No subject)'}
                       </div>
-
-                      <div className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
-                        From: {email.sender || email.fromAddress || 'Unknown'}
-                      </div>
-
-                      {email.summary ? (
-                        <p className="text-xs line-clamp-2 mb-2" style={{ color: 'var(--text-secondary)' }}>
-                          📝 {email.summary}
-                        </p>
-                      ) : email.bodyPreview ? (
-                        <p className="text-xs line-clamp-2 mb-2" style={{ color: 'var(--text-muted)' }}>
-                          {email.bodyPreview}
-                        </p>
-                      ) : null}
-
-                      <div className="flex items-center gap-2">
-                        {email.category && <CategoryBadge category={email.category} />}
-                        {email.priority && <PriorityDot priority={email.priority} />}
+                      <div className="font-mono text-xs truncate mt-0.5" style={{ color: 'var(--white-muted)' }}>
+                        {email.sender || email.fromAddress || 'Unknown'}
                       </div>
                     </div>
 
+                    {/* Summary */}
+                    <div className="font-mono text-xs truncate" style={{ color: 'var(--white-muted)' }}>
+                      {email.summary || email.bodyPreview || '—'}
+                    </div>
+
+                    {/* Category badge */}
+                    <div>
+                      {email.category && <CategoryBadge category={email.category} />}
+                    </div>
+
+                    {/* Time */}
+                    <div className="font-mono text-xs" style={{ color: 'var(--white-muted)' }}>
+                      {email.receivedAt
+                        ? formatDistanceToNow(new Date(email.receivedAt), { addSuffix: false })
+                        : '—'}
+                    </div>
+
+                    {/* Star */}
                     <button
                       onClick={(e) => toggleStar(e, email.id)}
-                      className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg hover:bg-yellow-400/10"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity font-mono text-base"
+                      style={{ color: email.isStarred ? 'var(--amber)' : 'var(--white-muted)' }}
                     >
-                      {email.isStarred ? (
-                        <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                      ) : (
-                        <StarOff className="w-4 h-4" style={{ color: '#475569' }} />
-                      )}
+                      {email.isStarred ? '★' : '☆'}
                     </button>
                   </div>
                 </Link>
@@ -355,25 +360,25 @@ export default function EmailsPage() {
         </div>
       )}
 
-      {/* Pagination */}
+      {/* ── Pagination ── */}
       {meta.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-3 pt-4">
+        <div className="flex items-center justify-center gap-4 pt-2">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="btn-ghost px-3 py-2 disabled:opacity-40"
+            className="btn-ghost disabled:opacity-40"
           >
-            <ChevronLeft className="w-4 h-4" />
+            ← prev
           </button>
-          <span className="text-sm" style={{ color: '#94a3b8' }}>
+          <span className="font-mono text-xs" style={{ color: 'var(--white-muted)' }}>
             {page} / {meta.totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
             disabled={page === meta.totalPages}
-            className="btn-ghost px-3 py-2 disabled:opacity-40"
+            className="btn-ghost disabled:opacity-40"
           >
-            <ChevronRight className="w-4 h-4" />
+            next →
           </button>
         </div>
       )}

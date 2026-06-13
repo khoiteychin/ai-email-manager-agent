@@ -72,7 +72,11 @@ export default function EmailsPage() {
         category: category !== 'All' ? category.toLowerCase() : undefined,
       });
       setEmails(res.data.data);
-      setMeta(res.data.meta);
+      setMeta({
+        total: res.data.meta.total,
+        page: res.data.meta.page,
+        totalPages: res.data.meta.pages || 1,
+      });
       const now = new Date().toISOString();
       setLastFetchTime(now);
       setLastRefresh(new Date());

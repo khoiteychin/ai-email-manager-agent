@@ -140,6 +140,15 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
     }
     setSendingEmail(true);
     try {
+      // Auto-save edits first if user is in editing mode, so Gmail sends the latest version
+      if (isEditingDraft) {
+        const html_body = editBody;
+        await draftsApi.save(draft.id, {
+          to: editTo,
+          subject: editSubject,
+          body: html_body,
+        });
+      }
       await draftsApi.send(draft.id);
       toast.success('Email sent successfully! ✨');
       setDraft(null);

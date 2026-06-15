@@ -341,6 +341,7 @@ export default function ChatPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeDraft, setComposeDraft] = useState<DraftData | undefined>(undefined);
+  const [sendingDrafts, setSendingDrafts] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -425,6 +426,31 @@ export default function ChatPage() {
   const openComposeWithDraft = (draft?: DraftData) => {
     setComposeDraft(draft);
     setComposeOpen(true);
+  };
+
+  const handleSendDirectly = async (messageId: string, draft: DraftData) => {
+    setSendingDrafts((prev) => ({ ...prev, [messageId]: true }));
+    try {
+      if (draft.id) {
+        await draftsApi.send(draft.id);
+      } else {
+        const fullBody = draft.signature ? `${draft.body}\n\n${draft.signature}` : draft.body;
+        const htmlBody = `<p>${fullBody.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br/>')}</p>`;
+        await aiApi.sendEmail({
+          to: draft.to,
+          subject: draft.subject,
+          body: htmlBody,
+        });
+      }
+      toast.success('Email đã được gửi thành công! 🎉');
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, draft: null } : m))
+      );
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Gửi email thất bại');
+    } finally {
+      setSendingDrafts((prev) => ({ ...prev, [messageId]: false }));
+    }
   };
 
   const sendMessage = async (text?: string) => {
@@ -763,18 +789,24 @@ export default function ChatPage() {
                         className="flex gap-2 px-1"
                       >
                         <button
-                          onClick={() => openComposeWithDraft(message.draft!)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
+                          onClick={() => handleSendDirectly(message.id, message.draft!)}
+                          disabled={sendingDrafts[message.id]}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all disabled:opacity-50"
                           style={{
                             background: 'var(--theme-gradient)',
                             color: 'white',
                           }}
                         >
-                          <Mail className="w-3 h-3" />
-                          Mở &amp; Gửi Email
+                          {sendingDrafts[message.id] ? (
+                            <Spinner className="w-3 h-3" />
+                          ) : (
+                            <Send className="w-3 h-3" />
+                          )}
+                          Gửi ngay
                         </button>
                         <button
                           onClick={() => openComposeWithDraft(message.draft!)}
+                          disabled={sendingDrafts[message.id]}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
                           style={{
                             border: '1px solid var(--border)',

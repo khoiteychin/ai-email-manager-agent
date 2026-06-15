@@ -6,8 +6,56 @@ from app.config import settings
 from app.database import AsyncSessionLocal
 from app.models import DiscordAccount
 import app.services.ai_service as ai_service
+import app.services.gmail_service as gmail_service
 
 logger = logging.getLogger(__name__)
+
+class DraftView(discord.ui.View):
+    def __init__(self, user_id: str, draft: dict, timeout=180.0):
+        super().__init__(timeout=timeout)
+        self.user_id = user_id
+        self.draft = draft
+
+    @discord.ui.button(label="Gửi ngay", style=discord.ButtonStyle.success, emoji="✉️")
+    async def send_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        
+        draft_id = self.draft.get("id")
+        to = self.draft.get("to") or ""
+        subject = self.draft.get("subject") or ""
+        body = self.draft.get("body") or ""
+        signature = self.draft.get("signature") or ""
+        
+        full_body = body
+        if signature:
+            full_body = f"{body}\n\n{signature}"
+            
+        html_body = "".join(f"<p>{para.replace(chr(10), '<br/>')}</p>" for para in full_body.split("\n\n"))
+        
+        try:
+            async with AsyncSessionLocal() as db:
+                if draft_id:
+                    await gmail_service.send_draft(self.user_id, db, draft_id)
+                else:
+                    await gmail_service.send_email(self.user_id, db, to, subject, html_body)
+                    
+            await interaction.followup.send("Email đã được gửi thành công! 🎉", ephemeral=True)
+            
+            for child in self.children:
+                child.disabled = True
+            await interaction.message.edit(content=f"{interaction.message.content}\n\n✅ **Đã gửi thành công!**", view=self)
+            self.stop()
+        except Exception as e:
+            logger.error(f"Failed to send email from Discord button: {e}", exc_info=True)
+            await interaction.followup.send("⚠️ Gửi email thất bại. Vui lòng kiểm tra lại tài khoản hoặc thử lại sau.", ephemeral=True)
+
+    @discord.ui.button(label="Hủy", style=discord.ButtonStyle.secondary, emoji="❌")
+    async def cancel_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
+        for child in self.children:
+            child.disabled = True
+        await interaction.message.edit(content=f"{interaction.message.content}\n\n❌ **Đã hủy gửi.**", view=self)
+        self.stop()
 
 # Configure Intents
 intents = discord.Intents.default()
@@ -83,7 +131,12 @@ async def on_message(message: discord.Message):
                     if len(reply_text) > 1990:
                         reply_text = reply_text[:1987] + "..."
 
-                    await message.reply(reply_text)
+                    draft = ai_response.get("draft")
+                    if draft:
+                        view = DraftView(user_id=user_id, draft=draft)
+                        await message.reply(reply_text, view=view)
+                    else:
+                        await message.reply(reply_text)
                 except Exception as e:
                     # Bug #6 fix: log full traceback so we can see exactly what went wrong
                     logger.error(f"Discord bot AI error for user {user_id}: {e}", exc_info=True)

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { aiApi } from '@/lib/api';
+import { aiApi, draftsApi } from '@/lib/api';
 import { Spinner } from '@/components/ui';
 import {
   Send,
@@ -12,6 +12,13 @@ import {
   MessageSquare,
   Sparkles,
   Trash2,
+  PenSquare,
+  X,
+  Mail,
+  Check,
+  ChevronDown,
+  Search,
+  Zap,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
@@ -24,23 +31,305 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   createdAt: Date;
+  draft?: DraftData | null;
+  action?: string;
 }
 
-// Bug #7a fix: Updated Session interface to match backend response fields
+interface DraftData {
+  id?: string | null;
+  to: string;
+  subject: string;
+  body: string;
+  signature?: string;
+}
+
 interface Session {
-  id: string;          // canonical (was sessionId before)
-  sessionId: string;   // alias provided by backend
-  title: string;       // canonical (was content before)
-  content: string;     // alias provided by backend
+  id: string;
+  sessionId: string;
+  title: string;
+  content: string;
   createdAt: string;
 }
 
 const SUGGESTIONS = [
-  'Summarize my recent work emails',
-  'Find emails from last week about invoices',
-  'What are my high priority emails?',
-  'Help me write a reply to my latest email',
+  { icon: '🔍', text: 'Tìm email từ Khanh Do' },
+  { icon: '📋', text: 'Tóm tắt email công việc tuần này' },
+  { icon: '⚡', text: 'Email nào ưu tiên cao nhất?' },
+  { icon: '✉️', text: 'Soạn email cảm ơn cho sếp' },
 ];
+
+interface ComposeModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  initialDraft?: DraftData;
+  onSent?: () => void;
+}
+
+function ComposeModal({ isOpen, onClose, initialDraft, onSent }: ComposeModalProps) {
+  const [to, setTo] = useState(initialDraft?.to || '');
+  const [subject, setSubject] = useState(initialDraft?.subject || '');
+  const [body, setBody] = useState(initialDraft?.body || '');
+  const [draftId, setDraftId] = useState(initialDraft?.id || null);
+  const [sending, setSending] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [instruction, setInstruction] = useState('');
+  const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    if (initialDraft) {
+      setTo(initialDraft.to || '');
+      setSubject(initialDraft.subject || '');
+      const fullBody = initialDraft.signature
+        ? `${initialDraft.body}\n\n${initialDraft.signature}`
+        : initialDraft.body || '';
+      setBody(fullBody);
+      setDraftId(initialDraft.id || null);
+    }
+  }, [initialDraft, isOpen]);
+
+  const handleGenerate = async () => {
+    if (!instruction.trim()) return;
+    setGenerating(true);
+    try {
+      const res = await aiApi.generateDraft({ instruction, context: `To: ${to}\nSubject: ${subject}` });
+      const d = res.data;
+      if (d.to) setTo(d.to);
+      if (d.subject) setSubject(d.subject);
+      const nb = d.signature ? `${d.body}\n\n${d.signature}` : d.body;
+      setBody(nb || '');
+      if (d.id) setDraftId(d.id);
+      setInstruction('');
+      toast.success('Đã tạo nội dung email!');
+    } catch {
+      toast.error('Không thể tạo email');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!draftId) {
+      toast.error('Chưa có draft ID');
+      return;
+    }
+    setSaving(true);
+    try {
+      await draftsApi.save(draftId, { to, subject, body });
+      toast.success('Đã lưu draft!');
+    } catch {
+      toast.error('Lưu draft thất bại');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!to.trim()) {
+      toast.error('Vui lòng nhập người nhận');
+      return;
+    }
+    setSending(true);
+    try {
+      if (draftId) {
+        await draftsApi.save(draftId, { to, subject, body });
+        await draftsApi.send(draftId);
+      } else {
+        await aiApi.sendEmail({ to, subject, body });
+      }
+      toast.success('Email đã được gửi! 🎉');
+      onSent?.();
+      onClose();
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || 'Gửi email thất bại');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ background: 'rgba(7, 12, 24, 0.85)', backdropFilter: 'blur(8px)' }}
+        onClick={(e) => e.target === e.currentTarget && onClose()}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.92, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.92, y: 20 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          className="w-full max-w-2xl rounded-2xl overflow-hidden"
+          style={{
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            boxShadow: '0 25px 60px rgba(99, 102, 241, 0.2)',
+          }}
+        >
+          {/* Header */}
+          <div
+            className="flex items-center justify-between px-6 py-4"
+            style={{
+              background: 'var(--theme-gradient)',
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
+                <PenSquare className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <div className="text-white font-semibold text-sm">Soạn Email</div>
+                <div className="text-white/60 text-xs">Compose &amp; Send</div>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all"
+            >
+              <X className="w-4 h-4 text-white" />
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4">
+            {/* AI Instruction Bar */}
+            <div
+              className="flex gap-2 p-3 rounded-xl"
+              style={{ background: 'var(--accent-glow)', border: '1px solid var(--border)' }}
+            >
+              <Zap className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--accent)' }} />
+              <input
+                value={instruction}
+                onChange={(e) => setInstruction(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+                placeholder="Mô tả email bạn muốn viết... (Enter để tạo)"
+                className="flex-1 bg-transparent outline-none text-sm"
+                style={{ color: 'var(--text-primary)' }}
+              />
+              {generating ? (
+                <Spinner className="w-4 h-4" />
+              ) : (
+                <button
+                  onClick={handleGenerate}
+                  disabled={!instruction.trim() || generating}
+                  className="text-xs px-3 py-1 rounded-lg font-medium transition-all disabled:opacity-40"
+                  style={{ background: 'var(--accent)', color: 'white' }}
+                >
+                  Tạo
+                </button>
+              )}
+            </div>
+
+            {/* To */}
+            <div>
+              <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>
+                Đến (To)
+              </label>
+              <input
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder="email@example.com"
+                className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; }}
+              />
+            </div>
+
+            {/* Subject */}
+            <div>
+              <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>
+                Tiêu đề (Subject)
+              </label>
+              <input
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Tiêu đề email..."
+                className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; }}
+              />
+            </div>
+
+            {/* Body */}
+            <div>
+              <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>
+                Nội dung (Body)
+              </label>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Nội dung email..."
+                rows={8}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all resize-none"
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                  lineHeight: '1.6',
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; }}
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-3 pt-1">
+              {draftId && (
+                <button
+                  onClick={handleSaveDraft}
+                  disabled={saving}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  style={{
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-secondary)',
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; }}
+                >
+                  {saving ? <Spinner className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
+                  Lưu Draft
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all ml-auto"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSend}
+                disabled={sending || !to.trim()}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-40"
+                style={{
+                  background: 'var(--theme-gradient)',
+                  color: 'white',
+                  boxShadow: '0 4px 15px rgba(99, 102, 241, 0.3)',
+                }}
+              >
+                {sending ? <Spinner className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
+                Gửi Email
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -50,6 +339,8 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeDraft, setComposeDraft] = useState<DraftData | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -64,11 +355,10 @@ export default function ChatPage() {
   const loadSessions = async () => {
     try {
       const res = await aiApi.getSessions();
-      // Backend returns array directly
       const data = Array.isArray(res.data) ? res.data : [];
       setSessions(data);
     } catch {
-      // Silently fail – user might not have any sessions yet
+      // Silently fail
     } finally {
       setSessionsLoading(false);
     }
@@ -78,7 +368,6 @@ export default function ChatPage() {
     setSessionId(sid);
     try {
       const res = await aiApi.getSessionHistory(sid);
-      // Backend returns { session, messages } or just array
       const msgs = res.data?.messages ?? res.data ?? [];
       setMessages(
         msgs.map((m: any) => ({
@@ -89,7 +378,7 @@ export default function ChatPage() {
         }))
       );
     } catch {
-      toast.error('Failed to load chat history');
+      toast.error('Không thể tải lịch sử chat');
     }
   };
 
@@ -99,20 +388,16 @@ export default function ChatPage() {
     setInput('');
   };
 
-  // Bug #7b fix: Delete session handler
   const deleteSession = async (e: React.MouseEvent, sid: string) => {
     e.stopPropagation();
     setDeletingId(sid);
     try {
       await aiApi.deleteSession(sid);
       setSessions((prev) => prev.filter((s) => s.id !== sid && s.sessionId !== sid));
-      // If we deleted the active session, start a new chat
-      if (sessionId === sid) {
-        newChat();
-      }
-      toast.success('Chat deleted');
+      if (sessionId === sid) newChat();
+      toast.success('Đã xóa cuộc trò chuyện');
     } catch {
-      toast.error('Failed to delete chat');
+      toast.error('Xóa thất bại');
     } finally {
       setDeletingId(null);
     }
@@ -129,14 +414,17 @@ export default function ChatPage() {
       }
       setMessages(updatedMessages);
     }
-
     try {
       await aiApi.deleteMessage(messageId);
-      toast.success('Message deleted');
     } catch {
-      toast.error('Failed to delete message');
+      toast.error('Xóa tin nhắn thất bại');
       loadSession(sessionId);
     }
+  };
+
+  const openComposeWithDraft = (draft?: DraftData) => {
+    setComposeDraft(draft);
+    setComposeOpen(true);
   };
 
   const sendMessage = async (text?: string) => {
@@ -154,32 +442,29 @@ export default function ChatPage() {
     setInput('');
     setLoading(true);
 
-    // Auto-resize textarea
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
 
     try {
       const res = await aiApi.chat({ message: messageText, sessionId });
-      // Bug #7a fix: backend returns { sessionId, message: { id, role, content, createdAt }, sources }
       const msgData = res.data.message;
       const assistantMessage: Message = {
         id: msgData.id || uuidv4(),
         role: 'assistant',
         content: msgData.content,
         createdAt: new Date(msgData.createdAt || Date.now()),
+        draft: res.data.draft || null,
+        action: res.data.action || undefined,
       };
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Update sessionId in case backend created a new session
       if (res.data.sessionId) {
         setSessionId(String(res.data.sessionId));
       }
-
-      // Refresh sessions list
       loadSessions();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || err.response?.data?.message || 'AI is temporarily unavailable');
+      toast.error(err.response?.data?.detail || 'AI tạm thời không khả dụng');
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
     } finally {
       setLoading(false);
@@ -194,305 +479,434 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-full" style={{ background: 'var(--bg-primary)' }}>
-      {/* Sessions sidebar */}
-      <div
-        className="w-64 flex flex-col border-r"
-        style={{
-          background: 'var(--bg-secondary)',
-          borderColor: 'var(--border)',
-        }}
-      >
-        <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
-          <button
-            onClick={newChat}
-            className="w-full btn-ghost justify-center gap-2 text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            New Chat
-          </button>
-        </div>
+    <>
+      <ComposeModal
+        isOpen={composeOpen}
+        onClose={() => setComposeOpen(false)}
+        initialDraft={composeDraft}
+        onSent={() => toast.success('Email đã gửi thành công!')}
+      />
 
-        <div className="flex-1 overflow-auto p-3 space-y-1">
-          {sessionsLoading ? (
-            <div className="flex justify-center pt-4">
-              <Spinner className="w-4 h-4" />
-            </div>
-          ) : sessions.length === 0 ? (
-            <p className="text-xs text-center pt-8" style={{ color: '#475569' }}>
-              No chats yet
-            </p>
-          ) : (
-            sessions.map((session) => {
-              // Bug #7a fix: use id (canonical) with sessionId as fallback
-              const sid = session.id || session.sessionId;
-              const isActive = sessionId === sid;
-              const label = session.title || session.content || 'Chat Session';
-
-              return (
-                <div
-                  key={sid}
-                  className="w-full text-left rounded-lg group relative"
-                  style={{
-                    background: isActive ? 'var(--accent-glow)' : 'transparent',
-                    border: isActive
-                      ? '1px solid var(--accent)'
-                      : '1px solid transparent',
-                  }}
-                >
-                  {/* Session click area */}
-                  <button
-                    onClick={() => loadSession(sid)}
-                    className="w-full text-left px-3 py-2.5 text-xs transition-all duration-200 pr-8"
-                    style={{ color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <MessageSquare className="w-3 h-3 flex-shrink-0" />
-                      <span className="truncate font-medium">{label}</span>
-                    </div>
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {formatDistanceToNow(new Date(session.createdAt), { addSuffix: true })}
-                    </span>
-                  </button>
-
-                  {/* Bug #7b fix: Delete button on each session */}
-                  <button
-                    onClick={(e) => deleteSession(e, sid)}
-                    disabled={deletingId === sid}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-red-500/20"
-                    title="Delete chat"
-                    style={{ color: '#ef4444' }}
-                  >
-                    {deletingId === sid ? (
-                      <Spinner className="w-3 h-3" />
-                    ) : (
-                      <Trash2 className="w-3 h-3" />
-                    )}
-                  </button>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* Chat area */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
+      <div className="flex h-full" style={{ background: 'var(--bg-primary)' }}>
+        {/* ── Sessions Sidebar ─────────────────────────────── */}
         <div
-          className="px-6 py-4 border-b flex items-center gap-3"
-          style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}
+          className="w-72 flex flex-col border-r"
+          style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
         >
-          <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center"
-            style={{ background: 'var(--theme-gradient)' }}
-          >
-            <Sparkles className="w-4 h-4 text-white" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold">AI Email Assistant</div>
-            <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              Powered by your AI Email Assistant
-            </div>
-          </div>
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-auto px-6 py-6 space-y-5">
-          {messages.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center justify-center h-full text-center space-y-6"
-            >
+          {/* Sidebar header */}
+          <div className="p-4 border-b" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex items-center gap-2 mb-3">
               <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                className="w-7 h-7 rounded-lg flex items-center justify-center"
                 style={{ background: 'var(--theme-gradient)' }}
               >
-                <Bot className="w-8 h-8 text-white" />
+                <Bot className="w-3.5 h-3.5 text-white" />
               </div>
-              <div>
-                <h2 className="text-xl font-bold mb-2">How can I help you?</h2>
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                  Ask me anything about your emails
-                </p>
-              </div>
-
-              {/* Suggestion chips */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
-                {SUGGESTIONS.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    onClick={() => sendMessage(suggestion)}
-                    className="p-3 rounded-xl text-left text-sm transition-all duration-200"
-                    style={{
-                      background: 'var(--bg-card)',
-                      border: '1px solid var(--border)',
-                      color: 'var(--text-secondary)',
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--accent)';
-                      e.currentTarget.style.color = 'var(--text-primary)';
-                      e.currentTarget.style.boxShadow = '0 0 12px var(--accent-glow)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--border)';
-                      e.currentTarget.style.color = 'var(--text-secondary)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          <AnimatePresence>
-            {messages.map((message) => (
-              <motion.div
-                key={message.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`flex items-start gap-3 group relative ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
-              >
-                {/* Avatar */}
-                <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{
-                    background: 'var(--theme-gradient)',
-                  }}
-                >
-                  {message.role === 'user' ? (
-                    <User className="w-4 h-4 text-white" />
-                  ) : (
-                    <Bot className="w-4 h-4 text-white" />
-                  )}
-                </div>
-
-                {/* Bubble */}
-                <div
-                  className="max-w-2xl px-4 py-3 rounded-2xl text-sm"
-                  style={{
-                    background:
-                      message.role === 'user'
-                        ? 'var(--accent-glow)'
-                        : 'var(--bg-secondary)',
-                    border: `1px solid ${message.role === 'user'
-                        ? 'var(--accent)'
-                        : 'var(--border)'
-                      }`,
-                    color: 'var(--text-primary)',
-                    borderRadius:
-                      message.role === 'user'
-                        ? '20px 20px 4px 20px'
-                        : '20px 20px 20px 4px',
-                  }}
-                >
-                  {message.role === 'assistant' ? (
-                    <div className="prose prose-invert prose-sm max-w-none">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {message.content}
-                      </ReactMarkdown>
-                    </div>
-                  ) : (
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-                  )}
-                </div>
-
-                {/* Delete Message Button */}
-                <button
-                  onClick={() => handleDeleteMessage(message.id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-red-500/10 text-red-400 self-center"
-                  title="Delete message"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-
-          {/* Typing indicator */}
-          {loading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex items-start gap-3"
-            >
-              <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center"
-                style={{ background: 'var(--theme-gradient)' }}
-              >
-                <Bot className="w-4 h-4 text-white" />
-              </div>
-              <div
-                className="px-4 py-3 rounded-2xl flex items-center gap-2"
-                style={{
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border)',
-                  borderRadius: '20px 20px 20px 4px',
-                }}
-              >
-                <div className="flex gap-1.5">
-                  <div className="typing-dot" />
-                  <div className="typing-dot" />
-                  <div className="typing-dot" />
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input area */}
-        <div
-          className="px-6 py-4 border-t"
-          style={{ borderColor: 'var(--border)', background: 'var(--bg-primary)' }}
-        >
-          <div
-            className="flex items-center gap-3 rounded-2xl px-4 py-3"
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-            }}
-          >
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                e.target.style.height = 'auto';
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
-              }}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask about your emails... (Enter to send, Shift+Enter for new line)"
-              rows={1}
-              className="flex-1 bg-transparent outline-none resize-none text-sm"
-              style={{
-                color: 'var(--text-primary)',
-                caretColor: 'var(--accent)',
-                maxHeight: '160px',
-              }}
-            />
-            <button
-              onClick={() => sendMessage()}
-              disabled={!input.trim() || loading}
-              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 disabled:opacity-40"
-              style={{
-                background: input.trim() && !loading
-                  ? 'var(--theme-gradient)'
-                  : 'var(--border)',
-              }}
-            >
-              <Send className="w-4 h-4 text-white" />
+              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                AI Assistant
+              </span>
+            </div>
+            <button onClick={newChat} className="w-full btn-ghost justify-center gap-2 text-xs py-2">
+              <Plus className="w-3.5 h-3.5" />
+              Cuộc trò chuyện mới
             </button>
           </div>
-          <p className="text-xs text-center mt-2" style={{ color: 'var(--text-muted)' }}>
-            AI responses are powered by RAG search over your emails
-          </p>
+
+          {/* Sessions list */}
+          <div className="flex-1 overflow-auto p-3 space-y-1">
+            <p className="text-xs font-medium px-2 pb-1" style={{ color: 'var(--text-muted)' }}>
+              Lịch sử
+            </p>
+            {sessionsLoading ? (
+              <div className="flex justify-center pt-6">
+                <Spinner className="w-4 h-4" />
+              </div>
+            ) : sessions.length === 0 ? (
+              <div className="text-center pt-8 space-y-2">
+                <MessageSquare className="w-8 h-8 mx-auto" style={{ color: 'var(--text-muted)' }} />
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Chưa có cuộc trò chuyện
+                </p>
+              </div>
+            ) : (
+              sessions.map((session) => {
+                const sid = session.id || session.sessionId;
+                const isActive = sessionId === sid;
+                const label = session.title || session.content || 'Chat Session';
+
+                return (
+                  <div
+                    key={sid}
+                    className="w-full text-left rounded-xl group relative transition-all duration-150"
+                    style={{
+                      background: isActive ? 'var(--accent-glow)' : 'transparent',
+                      border: isActive ? '1px solid rgba(99,102,241,0.4)' : '1px solid transparent',
+                    }}
+                  >
+                    <button
+                      onClick={() => loadSession(sid)}
+                      className="w-full text-left px-3 py-2.5 pr-9"
+                    >
+                      <div className="flex items-start gap-2">
+                        <MessageSquare
+                          className="w-3 h-3 flex-shrink-0 mt-0.5"
+                          style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)' }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className="text-xs font-medium truncate"
+                            style={{ color: isActive ? 'var(--accent)' : 'var(--text-secondary)' }}
+                          >
+                            {label}
+                          </div>
+                          <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                            {formatDistanceToNow(new Date(session.createdAt), { addSuffix: true })}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={(e) => deleteSession(e, sid)}
+                      disabled={deletingId === sid}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg"
+                      style={{ color: '#ef4444' }}
+                      title="Xóa chat"
+                    >
+                      {deletingId === sid ? (
+                        <Spinner className="w-3 h-3" />
+                      ) : (
+                        <Trash2 className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Compose button at bottom */}
+          <div className="p-4 border-t" style={{ borderColor: 'var(--border)' }}>
+            <button
+              onClick={() => openComposeWithDraft(undefined)}
+              className="w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
+              style={{
+                background: 'var(--theme-gradient)',
+                color: 'white',
+                boxShadow: '0 4px 15px rgba(99, 102, 241, 0.25)',
+              }}
+            >
+              <PenSquare className="w-4 h-4" />
+              Soạn Email Mới
+            </button>
+          </div>
+        </div>
+
+        {/* ── Chat Area ─────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Header */}
+          <div
+            className="px-6 py-4 border-b flex items-center justify-between flex-shrink-0"
+            style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center"
+                style={{ background: 'var(--theme-gradient)' }}
+              >
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold">AI Email Assistant</div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    Trực tuyến · Tìm kiếm thông minh
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => openComposeWithDraft(undefined)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+              style={{
+                border: '1px solid var(--border)',
+                color: 'var(--text-secondary)',
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.borderColor = 'var(--accent)';
+                e.currentTarget.style.color = 'var(--accent)';
+                e.currentTarget.style.background = 'var(--accent-glow)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border)';
+                e.currentTarget.style.color = 'var(--text-secondary)';
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <PenSquare className="w-3.5 h-3.5" />
+              Soạn Email
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-auto px-6 py-6 space-y-5">
+            {messages.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col items-center justify-center h-full text-center space-y-8"
+              >
+                <div className="space-y-4">
+                  <div
+                    className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto"
+                    style={{
+                      background: 'var(--theme-gradient)',
+                      boxShadow: '0 12px 40px rgba(99, 102, 241, 0.3)',
+                    }}
+                  >
+                    <Bot className="w-10 h-10 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold mb-2">Tôi có thể giúp gì cho bạn?</h2>
+                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                      Tìm kiếm email, tóm tắt, soạn thảo — tất cả chỉ trong một cuộc trò chuyện
+                    </p>
+                  </div>
+                </div>
+
+                {/* Suggestion chips */}
+                <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s.text}
+                      onClick={() => sendMessage(s.text)}
+                      className="p-4 rounded-2xl text-left text-sm transition-all duration-200 group"
+                      style={{
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--accent)';
+                        e.currentTarget.style.boxShadow = '0 0 20px var(--accent-glow)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <div className="text-xl mb-2">{s.icon}</div>
+                      <div style={{ color: 'var(--text-secondary)' }}>{s.text}</div>
+                    </button>
+                  ))}
+                </div>
+
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Thử gõ: "tìm email từ [tên]" hoặc "soạn email cho sếp về dự án X"
+                </p>
+              </motion.div>
+            )}
+
+            <AnimatePresence>
+              {messages.map((message) => (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex items-start gap-3 group relative ${
+                    message.role === 'user' ? 'flex-row-reverse' : ''
+                  }`}
+                >
+                  {/* Avatar */}
+                  <div
+                    className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: 'var(--theme-gradient)' }}
+                  >
+                    {message.role === 'user' ? (
+                      <User className="w-4 h-4 text-white" />
+                    ) : (
+                      <Bot className="w-4 h-4 text-white" />
+                    )}
+                  </div>
+
+                  {/* Bubble */}
+                  <div className="max-w-2xl space-y-2">
+                    <div
+                      className="px-4 py-3 text-sm"
+                      style={{
+                        background:
+                          message.role === 'user' ? 'var(--accent-glow)' : 'var(--bg-secondary)',
+                        border: `1px solid ${
+                          message.role === 'user' ? 'rgba(99,102,241,0.4)' : 'var(--border)'
+                        }`,
+                        color: 'var(--text-primary)',
+                        borderRadius:
+                          message.role === 'user' ? '20px 20px 4px 20px' : '20px 20px 20px 4px',
+                      }}
+                    >
+                      {message.role === 'assistant' ? (
+                        <div className="prose prose-invert prose-sm max-w-none">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.content}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                      )}
+                    </div>
+
+                    {/* Draft action buttons */}
+                    {message.role === 'assistant' && message.draft && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex gap-2 px-1"
+                      >
+                        <button
+                          onClick={() => openComposeWithDraft(message.draft!)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
+                          style={{
+                            background: 'var(--theme-gradient)',
+                            color: 'white',
+                          }}
+                        >
+                          <Mail className="w-3 h-3" />
+                          Mở &amp; Gửi Email
+                        </button>
+                        <button
+                          onClick={() => openComposeWithDraft(message.draft!)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
+                          style={{
+                            border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)',
+                          }}
+                        >
+                          <PenSquare className="w-3 h-3" />
+                          Chỉnh sửa
+                        </button>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  {/* Delete button */}
+                  <button
+                    onClick={() => handleDeleteMessage(message.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg self-center"
+                    style={{ color: '#ef4444' }}
+                    title="Xóa tin nhắn"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {/* Typing indicator */}
+            {loading && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex items-start gap-3"
+              >
+                <div
+                  className="w-8 h-8 rounded-xl flex items-center justify-center"
+                  style={{ background: 'var(--theme-gradient)' }}
+                >
+                  <Bot className="w-4 h-4 text-white" />
+                </div>
+                <div
+                  className="px-4 py-3 rounded-2xl flex items-center gap-2"
+                  style={{
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '20px 20px 20px 4px',
+                  }}
+                >
+                  <div className="flex gap-1.5">
+                    <div className="typing-dot" />
+                    <div className="typing-dot" />
+                    <div className="typing-dot" />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input area */}
+          <div
+            className="px-6 py-4 border-t flex-shrink-0"
+            style={{ borderColor: 'var(--border)', background: 'var(--bg-secondary)' }}
+          >
+            <div
+              className="flex items-end gap-3 rounded-2xl px-4 py-3 transition-all"
+              style={{
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border)',
+              }}
+              onFocusCapture={(e) => {
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(99,102,241,0.5)';
+                (e.currentTarget as HTMLElement).style.boxShadow = '0 0 0 3px var(--accent-glow)';
+              }}
+              onBlurCapture={(e) => {
+                (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)';
+                (e.currentTarget as HTMLElement).style.boxShadow = 'none';
+              }}
+            >
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  e.target.style.height = 'auto';
+                  e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder="Hỏi về email... hoặc 'soạn email cho...' (Enter để gửi)"
+                rows={1}
+                className="flex-1 bg-transparent outline-none resize-none text-sm"
+                style={{
+                  color: 'var(--text-primary)',
+                  caretColor: 'var(--accent)',
+                  maxHeight: '160px',
+                }}
+              />
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => openComposeWithDraft(undefined)}
+                  title="Soạn email"
+                  className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+                  style={{ color: 'var(--text-muted)' }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.color = 'var(--accent)';
+                    e.currentTarget.style.background = 'var(--accent-glow)';
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.color = 'var(--text-muted)';
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <PenSquare className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => sendMessage()}
+                  disabled={!input.trim() || loading}
+                  className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 disabled:opacity-40"
+                  style={{
+                    background: input.trim() && !loading ? 'var(--theme-gradient)' : 'var(--border)',
+                  }}
+                >
+                  <Send className="w-4 h-4 text-white" />
+                </button>
+              </div>
+            </div>
+            <p className="text-xs text-center mt-2" style={{ color: 'var(--text-muted)' }}>
+              Tìm kiếm theo tên người gửi, nội dung, hoặc tiêu đề · AI sẽ tự hiểu yêu cầu của bạn
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

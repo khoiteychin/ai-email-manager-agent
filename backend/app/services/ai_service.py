@@ -1,9 +1,10 @@
 import json
 import logging
+import re
 from typing import Optional
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
+from sqlalchemy import select, text, or_
 from app.models import Email, AiChatSession, AiChatMessage
 from app.config import settings
 import app.services.gmail_service as gmail_service
@@ -17,6 +18,70 @@ def get_openai_client() -> AsyncOpenAI:
     if not client:
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
     return client
+
+
+# ─── Intent Detection ─────────────────────────────────────────
+
+async def detect_intent(message: str, openai: AsyncOpenAI) -> dict:
+    """
+    Detect user intent from message. Returns a dict with:
+    - intent: "search_sender" | "compose_draft" | "send_email" | "general"
+    - sender_query: extracted sender name/email (for search_sender)
+    - draft_info: {to, subject, body_hint} (for compose_draft/send_email)
+    """
+    prompt = f"""Analyze this user message about emails and return a JSON object.
+
+Message: "{message}"
+
+Return JSON with:
+{{
+  "intent": "search_sender" | "compose_draft" | "send_email" | "general",
+  "sender_query": "extracted person name or email address if searching by sender, otherwise null",
+  "draft_to": "recipient email or name if composing, otherwise null",
+  "draft_subject": "email subject if mentioned, otherwise null",
+  "draft_body_hint": "brief description of what the email should say, otherwise null"
+}}
+
+Examples:
+- "find emails from Khanh Do" -> intent: "search_sender", sender_query: "Khanh Do"
+- "show emails from john@gmail.com" -> intent: "search_sender", sender_query: "john@gmail.com"
+- "tìm mail từ Nguyễn Văn A" -> intent: "search_sender", sender_query: "Nguyễn Văn A"
+- "compose email to boss about meeting" -> intent: "compose_draft", draft_to: "boss", draft_subject: "Meeting", draft_body_hint: "about meeting"
+- "send email to john@gmail.com saying hello" -> intent: "send_email", draft_to: "john@gmail.com", draft_body_hint: "hello"
+- "what are my recent emails?" -> intent: "general"
+"""
+    try:
+        completion = await openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0,
+        )
+        return json.loads(completion.choices[0].message.content or "{}")
+    except Exception:
+        return {"intent": "general"}
+
+
+# ─── Hybrid Email Search ───────────────────────────────────────
+
+async def search_emails_by_sender(
+    user_id: str, sender_query: str, limit: int, db: AsyncSession
+) -> list[Email]:
+    """Search emails by sender name or email address (case-insensitive substring)."""
+    pattern = f"%{sender_query}%"
+    result = await db.execute(
+        select(Email)
+        .where(
+            Email.user_id == user_id,
+            or_(
+                Email.sender.ilike(pattern),
+                Email.sender_email.ilike(pattern),
+            )
+        )
+        .order_by(Email.received_at.desc())
+        .limit(limit)
+    )
+    return list(result.scalars().all())
 
 
 # ─── RAG Chat ─────────────────────────────────────────────────
@@ -54,16 +119,67 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
     )
     history = list(reversed(result.scalars().all()))
 
-    # Embed question and search similar emails
-    query_embedding = await embed_text(message)
-    relevant_emails = await search_similar_emails(user_id, query_embedding, 5, db)
+    # ── Detect intent ─────────────────────────────────────────
+    intent_data = await detect_intent(message, openai)
+    intent = intent_data.get("intent", "general")
+
+    # ── Handle compose/send intents ───────────────────────────
+    if intent in ("compose_draft", "send_email"):
+        draft_to = intent_data.get("draft_to") or ""
+        draft_subject = intent_data.get("draft_subject") or ""
+        draft_hint = intent_data.get("draft_body_hint") or message
+
+        instruction = f"To: {draft_to}\nSubject: {draft_subject}\n{draft_hint}"
+        draft_content = await _compose_email_inline(openai, instruction)
+        
+        action = "send" if intent == "send_email" else "draft"
+        reply = _format_draft_reply(draft_content, action)
+        sources = []
+
+        assistant_msg = AiChatMessage(
+            session_id=session.id,
+            role="assistant",
+            content=reply,
+            sources=sources,
+        )
+        db.add(assistant_msg)
+        await db.commit()
+
+        return {
+            "sessionId": session.id,
+            "message": {
+                "id": assistant_msg.id,
+                "role": "assistant",
+                "content": reply,
+                "createdAt": assistant_msg.created_at.isoformat() if assistant_msg.created_at else None,
+            },
+            "sources": sources,
+            "action": action,
+            "draft": draft_content,
+        }
+
+    # ── Search emails ─────────────────────────────────────────
+    relevant_emails: list[Email] = []
+
+    if intent == "search_sender":
+        sender_query = intent_data.get("sender_query") or ""
+        if sender_query:
+            relevant_emails = await search_emails_by_sender(user_id, sender_query, 10, db)
+            # If sender search returns nothing, fall back to semantic search
+            if not relevant_emails:
+                query_embedding = await embed_text(message)
+                relevant_emails = await search_similar_emails(user_id, query_embedding, 5, db)
+    else:
+        # General intent: use semantic search
+        query_embedding = await embed_text(message)
+        relevant_emails = await search_similar_emails(user_id, query_embedding, 5, db)
 
     # Build context
     context_parts = []
     for i, email in enumerate(relevant_emails, 1):
         body_snippet = (email.body_text or "")[:500]
         context_parts.append(
-            f"[Email {i}]\nFrom: {email.sender}\nSubject: {email.subject}\n"
+            f"[Email {i}]\nFrom: {email.sender} <{email.sender_email}>\nSubject: {email.subject}\n"
             f"Date: {email.received_at}\n{body_snippet}"
         )
     context = "\n\n---\n\n".join(context_parts) if context_parts else "No relevant emails found."
@@ -73,6 +189,8 @@ Use the following emails from the user's inbox as context to answer their questi
 If the information is not in the provided emails, say so clearly.
 
 Language Rule: Always respond in the same language the user uses. If the user writes in Vietnamese (or mostly Vietnamese with a few English words), respond in natural Vietnamese. If the user writes in English, respond in English.
+
+Compose/Draft Tips: If the user asks you to compose, write, or draft an email, suggest they use the "Compose" button in the chat toolbar for the best experience. You can also provide a draft inline.
 
 Email Context:
 {context}"""
@@ -114,6 +232,58 @@ Email Context:
     }
 
 
+async def _compose_email_inline(openai: AsyncOpenAI, instruction: str) -> dict:
+    """Compose a draft email inline (used when chat detects compose intent)."""
+    prompt = f"""You are an expert email writer. Create a professional email.
+
+Instruction: {instruction}
+
+Return a JSON object with:
+{{
+  "to": "recipient email if mentioned, otherwise empty string",
+  "subject": "email subject line",
+  "body": "full email body as plain text (no HTML, use newlines for paragraphs)",
+  "signature": "professional signature as plain text"
+}}"""
+    completion = await openai.chat.completions.create(
+        model=settings.OPENAI_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+        temperature=0.5,
+    )
+    try:
+        return json.loads(completion.choices[0].message.content or "{}")
+    except Exception:
+        return {"subject": "", "body": completion.choices[0].message.content or "", "to": ""}
+
+
+def _format_draft_reply(draft: dict, action: str) -> str:
+    """Format a draft email as a readable chat reply with structured info."""
+    to = draft.get("to", "")
+    subject = draft.get("subject", "")
+    body = draft.get("body", "")
+    signature = draft.get("signature", "")
+
+    full_body = body
+    if signature:
+        full_body = f"{body}\n\n{signature}"
+
+    if action == "send":
+        header = "✉️ **Email sẵn sàng gửi** / **Email Ready to Send**\n\n"
+    else:
+        header = "📝 **Draft Email đã được tạo** / **Draft Created**\n\n"
+
+    return (
+        f"{header}"
+        f"**To:** {to or '(chưa có người nhận)'}\n"
+        f"**Subject:** {subject or '(chưa có tiêu đề)'}\n\n"
+        f"---\n\n"
+        f"{full_body}\n\n"
+        f"---\n\n"
+        f"_Bạn có thể chỉnh sửa và gửi email này từ nút **Compose** hoặc xác nhận bên dưới._"
+    )
+
+
 # ─── Draft Generation ──────────────────────────────────────────
 
 async def generate_draft(
@@ -137,7 +307,6 @@ async def generate_draft(
                 f"{(email.body_text or '')[:1000]}"
             )
 
-    # Bug #5/#6 fix: request plain text body, not HTML, so frontend can display without raw tags
     prompt = f"""You are an expert email writer. Create a professional email.
 {f'Context:{chr(10)}{email_context}' if email_context else ''}
 
@@ -219,9 +388,9 @@ async def get_sessions(user_id: str, db: AsyncSession) -> list:
     return [
         {
             "id": str(s.id),
-            "sessionId": str(s.id),  # alias for frontend compat
+            "sessionId": str(s.id),
             "title": s.title or "New Chat",
-            "content": s.title or "New Chat",  # alias for frontend compat
+            "content": s.title or "New Chat",
             "createdAt": s.created_at.isoformat() if s.created_at else None,
             "updatedAt": s.updated_at.isoformat() if s.updated_at else None,
         }
@@ -229,7 +398,6 @@ async def get_sessions(user_id: str, db: AsyncSession) -> list:
     ]
 
 
-# Bug #7 fix: Add delete_session function
 async def delete_session(user_id: str, session_id: str, db: AsyncSession) -> bool:
     """Delete a chat session and all its messages (CASCADE)."""
     result = await db.execute(
@@ -307,7 +475,6 @@ Return JSON with:
         )
         result = json.loads(completion.choices[0].message.content or "{}")
 
-        # Canonical normalization
         valid_categories = {"work", "personal", "social", "invoice", "promotion", "security"}
         category = result.get("category", "personal").lower()
         if category == "ads":
@@ -315,7 +482,6 @@ Return JSON with:
         elif category not in valid_categories:
             category = "personal"
 
-        # Format the summary to store in DB
         summary_text = result.get("summary", "")
         key_points = result.get("key_points", [])
         suggestion = result.get("suggestion", "")
@@ -339,7 +505,6 @@ Return JSON with:
         )
         await db.commit()
 
-        # Apply Gmail Label Integration
         try:
             result_email = await db.execute(select(Email).where(Email.id == email_id))
             email_obj = result_email.scalar_one_or_none()
@@ -353,7 +518,6 @@ Return JSON with:
         except Exception as label_err:
             logger.warning(f"Failed to apply Gmail label for {email_id}: {label_err}")
 
-        # Generate embedding asynchronously
         text_for_embed = f"{subject}\n{body_text}"
         try:
             embedding = await embed_text(text_for_embed)
@@ -403,7 +567,6 @@ async def search_similar_emails(
                        LIMIT :limit"""),
                 {"user_id": user_id, "embedding": vector_str, "limit": limit},
             )
-            # Bug #7 fixed: preserve the cosine similarity ordering by mapping results back by id
             email_ids = [row[0] for row in rows.fetchall()]
             if not email_ids:
                 raise Exception("No embeddings")
@@ -411,10 +574,8 @@ async def search_similar_emails(
                 select(Email).where(Email.id.in_(email_ids), Email.user_id == user_id)
             )
             emails_by_id = {e.id: e for e in result.scalars().all()}
-            # Return in original cosine similarity order (most relevant first)
             return [emails_by_id[eid] for eid in email_ids if eid in emails_by_id]
     except Exception:
-        # Fallback to recent emails
         result = await db.execute(
             select(Email)
             .where(Email.user_id == user_id)
@@ -432,7 +593,6 @@ async def delete_chat_message(user_id: str, message_id: str, db: AsyncSession) -
     except ValueError:
         return False
 
-    # Find the message and check if session belongs to user
     result = await db.execute(
         select(AiChatMessage)
         .join(AiChatSession)
@@ -445,7 +605,6 @@ async def delete_chat_message(user_id: str, message_id: str, db: AsyncSession) -
     session_id = message.session_id
 
     if message.role == "user":
-        # Find assistant messages in same session created after this message
         assistant_result = await db.execute(
             select(AiChatMessage)
             .where(
@@ -466,7 +625,6 @@ async def delete_chat_message(user_id: str, message_id: str, db: AsyncSession) -
 
 
 def format_discord_notification(email, ai_result) -> str:
-    # Translations
     categories_vn = {
         "work": "Công việc",
         "personal": "Cá nhân",
@@ -491,7 +649,6 @@ def format_discord_notification(email, ai_result) -> str:
     sender = email.sender or "Unknown"
     subject = email.subject or "(No Subject)"
 
-    # Vietnam time conversion
     from datetime import timezone, timedelta
     received_at = getattr(email, 'received_at', None)
     if received_at:
@@ -520,5 +677,3 @@ def format_discord_notification(email, ai_result) -> str:
           f"💡 **Đề xuất:** {suggestion or 'Không có.'}\n\n" \
           f"Hỏi về email này: gõ câu hỏi bất kỳ"
     return msg
-
-

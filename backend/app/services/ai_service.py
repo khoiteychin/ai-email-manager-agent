@@ -28,6 +28,7 @@ async def detect_intent(message: str, openai: AsyncOpenAI) -> dict:
     - intent: "search_sender" | "compose_draft" | "send_email" | "general"
     - sender_query: extracted sender name/email (for search_sender)
     - draft_info: {to, subject, body_hint} (for compose_draft/send_email)
+    - reply_target_query: search query description if replying to a specific email
     """
     prompt = f"""Analyze this user message about emails and return a JSON object.
 
@@ -39,15 +40,17 @@ Return JSON with:
   "sender_query": "extracted person name or email address if searching by sender, otherwise null",
   "draft_to": "recipient email or name if composing, otherwise null",
   "draft_subject": "email subject if mentioned, otherwise null",
-  "draft_body_hint": "brief description of what the email should say, otherwise null"
+  "draft_body_hint": "brief description of what the email should say, otherwise null",
+  "reply_target_query": "extracted search query or reference if the user is replying to a specific email (e.g. 'email from Khanh Do about meeting', 'email about invoice', 'email 1'), otherwise null"
 }}
 
 Examples:
 - "find emails from Khanh Do" -> intent: "search_sender", sender_query: "Khanh Do"
 - "show emails from john@gmail.com" -> intent: "search_sender", sender_query: "john@gmail.com"
-- "tìm mail từ Nguyễn Văn A" -> intent: "search_sender", sender_query: "Nguyễn Văn A"
 - "compose email to boss about meeting" -> intent: "compose_draft", draft_to: "boss", draft_subject: "Meeting", draft_body_hint: "about meeting"
 - "send email to john@gmail.com saying hello" -> intent: "send_email", draft_to: "john@gmail.com", draft_body_hint: "hello"
+- "reply to the email from Khanh Do about confirmation saying ok" -> intent: "compose_draft", reply_target_query: "email from Khanh Do about confirmation", draft_body_hint: "ok"
+- "trả lời email của Nguyễn Văn A ngày 13 tháng 6 nói tôi đồng ý" -> intent: "compose_draft", reply_target_query: "email của Nguyễn Văn A ngày 13 tháng 6", draft_body_hint: "tôi đồng ý"
 - "what are my recent emails?" -> intent: "general"
 """
     try:
@@ -128,13 +131,68 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         draft_to = intent_data.get("draft_to") or ""
         draft_subject = intent_data.get("draft_subject") or ""
         draft_hint = intent_data.get("draft_body_hint") or message
+        reply_target_query = intent_data.get("reply_target_query")
+        
+        email_context = ""
+        target_email = None
+        sources = []
+        
+        if reply_target_query:
+            try:
+                query_embedding = await embed_text(reply_target_query)
+                emails = await search_similar_emails(user_id, query_embedding, 1, db)
+                if emails:
+                    target_email = emails[0]
+                    sources = [{"id": str(target_email.id), "subject": target_email.subject, "sender": target_email.sender}]
+                    email_context = (
+                        f"Original Email:\n"
+                        f"From: {target_email.sender} <{target_email.sender_email}>\n"
+                        f"Subject: {target_email.subject}\n"
+                        f"Date: {target_email.received_at}\n\n"
+                        f"{target_email.body_text or ''}"
+                    )
+                    if not draft_to:
+                        draft_to = target_email.sender_email or target_email.sender or ""
+                    if not draft_subject:
+                        draft_subject = f"Re: {target_email.subject}"
+            except Exception as search_err:
+                logger.warning(f"Failed to find target email for reply: {search_err}")
 
         instruction = f"To: {draft_to}\nSubject: {draft_subject}\n{draft_hint}"
-        draft_content = await _compose_email_inline(openai, instruction)
+        draft_content = await _compose_email_inline(openai, instruction, email_context)
+        
+        # Override to/subject if we resolved them from the target email and LLM returned empty
+        if target_email:
+            if not draft_content.get("to"):
+                draft_content["to"] = draft_to
+            if not draft_content.get("subject"):
+                draft_content["subject"] = draft_subject
+        
+        # Pre-create Gmail draft so it has an ID
+        draft_id = None
+        try:
+            html_body = draft_content.get("body", "")
+            if html_body:
+                html_body_formatted = "".join(
+                    f"<p>{para.replace(chr(10), '<br/>')}</p>"
+                    for para in html_body.split("\n\n")
+                )
+            else:
+                html_body_formatted = ""
+            draft_id = await gmail_service.create_draft(
+                user_id=user_id,
+                db=db,
+                to=draft_content.get("to", ""),
+                subject=draft_content.get("subject", ""),
+                body=html_body_formatted
+            )
+        except Exception as draft_err:
+            logger.warning(f"Failed to pre-create Gmail draft: {draft_err}")
+            
+        draft_content["id"] = draft_id
         
         action = "send" if intent == "send_email" else "draft"
         reply = _format_draft_reply(draft_content, action)
-        sources = []
 
         assistant_msg = AiChatMessage(
             session_id=session.id,
@@ -187,11 +245,11 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
     system_prompt = f"""You are an AI email assistant. Help users understand and manage their emails.
 Use the following emails from the user's inbox as context to answer their question.
 If the information is not in the provided emails, say so clearly.
-
+ 
 Language Rule: Always respond in the same language the user uses. If the user writes in Vietnamese (or mostly Vietnamese with a few English words), respond in natural Vietnamese. If the user writes in English, respond in English.
-
-Compose/Draft Tips: If the user asks you to compose, write, or draft an email, suggest they use the "Compose" button in the chat toolbar for the best experience. You can also provide a draft inline.
-
+ 
+Compose/Draft Tips: If the user asks you to compose, write, or draft an email, suggest they use the "Compose" button or use the "Edit"/"Send Now" buttons directly under the message for the best experience. You can also provide a draft inline.
+ 
 Email Context:
 {context}"""
 
@@ -232,11 +290,14 @@ Email Context:
     }
 
 
-async def _compose_email_inline(openai: AsyncOpenAI, instruction: str) -> dict:
+async def _compose_email_inline(openai: AsyncOpenAI, instruction: str, email_context: str = "") -> dict:
     """Compose a draft email inline (used when chat detects compose intent)."""
     prompt = f"""You are an expert email writer. Create a professional email.
+{f'Context of original email to reply to:{chr(10)}{email_context}' if email_context else ''}
 
 Instruction: {instruction}
+
+Write the email in the same language as the context if replying, otherwise in English. Keep a professional tone.
 
 Return a JSON object with:
 {{
@@ -269,18 +330,18 @@ def _format_draft_reply(draft: dict, action: str) -> str:
         full_body = f"{body}\n\n{signature}"
 
     if action == "send":
-        header = "✉️ **Email sẵn sàng gửi** / **Email Ready to Send**\n\n"
+        header = "✉️ **Email Ready to Send**\n\n"
     else:
-        header = "📝 **Draft Email đã được tạo** / **Draft Created**\n\n"
+        header = "📝 **Draft Email Created**\n\n"
 
     return (
         f"{header}"
-        f"**To:** {to or '(chưa có người nhận)'}\n"
-        f"**Subject:** {subject or '(chưa có tiêu đề)'}\n\n"
+        f"**To:** {to or '(no recipient)'}\n"
+        f"**Subject:** {subject or '(no subject)'}\n\n"
         f"---\n\n"
         f"{full_body}\n\n"
         f"---\n\n"
-        f"_Bạn có thể chỉnh sửa và gửi email này từ nút **Compose** hoặc xác nhận bên dưới._"
+        f"_You can edit and send this email using the buttons below._"
     )
 
 

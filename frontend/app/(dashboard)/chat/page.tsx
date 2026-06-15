@@ -52,10 +52,10 @@ interface Session {
 }
 
 const SUGGESTIONS = [
-  { icon: '🔍', text: 'Tìm email từ Khanh Do' },
-  { icon: '📋', text: 'Tóm tắt email công việc tuần này' },
-  { icon: '⚡', text: 'Email nào ưu tiên cao nhất?' },
-  { icon: '✉️', text: 'Soạn email cảm ơn cho sếp' },
+  { icon: '🔍', text: 'Find emails from Khanh Do' },
+  { icon: '📋', text: 'Summarize work emails this week' },
+  { icon: '⚡', text: 'Which emails have high priority?' },
+  { icon: '✉️', text: 'Compose a thank you email to boss' },
 ];
 
 interface ComposeModalProps {
@@ -182,7 +182,7 @@ function ComposeModal({ isOpen, onClose, initialDraft, onSent }: ComposeModalPro
                 <PenSquare className="w-4 h-4 text-white" />
               </div>
               <div>
-                <div className="text-white font-semibold text-sm">Soạn Email</div>
+                <div className="text-white font-semibold text-sm">Compose Email</div>
                 <div className="text-white/60 text-xs">Compose &amp; Send</div>
               </div>
             </div>
@@ -205,7 +205,7 @@ function ComposeModal({ isOpen, onClose, initialDraft, onSent }: ComposeModalPro
                 value={instruction}
                 onChange={(e) => setInstruction(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
-                placeholder="Mô tả email bạn muốn viết... (Enter để tạo)"
+                placeholder="Describe the email you want to write... (Enter to generate)"
                 className="flex-1 bg-transparent outline-none text-sm"
                 style={{ color: 'var(--text-primary)' }}
               />
@@ -218,7 +218,7 @@ function ComposeModal({ isOpen, onClose, initialDraft, onSent }: ComposeModalPro
                   className="text-xs px-3 py-1 rounded-lg font-medium transition-all disabled:opacity-40"
                   style={{ background: 'var(--accent)', color: 'white' }}
                 >
-                  Tạo
+                  Generate
                 </button>
               )}
             </div>
@@ -226,7 +226,7 @@ function ComposeModal({ isOpen, onClose, initialDraft, onSent }: ComposeModalPro
             {/* To */}
             <div>
               <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>
-                Đến (To)
+                To
               </label>
               <input
                 value={to}
@@ -246,12 +246,12 @@ function ComposeModal({ isOpen, onClose, initialDraft, onSent }: ComposeModalPro
             {/* Subject */}
             <div>
               <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>
-                Tiêu đề (Subject)
+                Subject
               </label>
               <input
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                placeholder="Tiêu đề email..."
+                placeholder="Email subject..."
                 className="w-full px-4 py-2.5 rounded-xl text-sm outline-none transition-all"
                 style={{
                   background: 'var(--bg-card)',
@@ -266,12 +266,12 @@ function ComposeModal({ isOpen, onClose, initialDraft, onSent }: ComposeModalPro
             {/* Body */}
             <div>
               <label className="text-xs font-medium mb-1.5 block" style={{ color: 'var(--text-muted)' }}>
-                Nội dung (Body)
+                Body
               </label>
               <textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                placeholder="Nội dung email..."
+                placeholder="Email content..."
                 rows={8}
                 className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all resize-none"
                 style={{
@@ -300,7 +300,7 @@ function ComposeModal({ isOpen, onClose, initialDraft, onSent }: ComposeModalPro
                   onMouseOut={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; }}
                 >
                   {saving ? <Spinner className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
-                  Lưu Draft
+                  Save Draft
                 </button>
               )}
               <button
@@ -308,7 +308,7 @@ function ComposeModal({ isOpen, onClose, initialDraft, onSent }: ComposeModalPro
                 className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all ml-auto"
                 style={{ color: 'var(--text-muted)' }}
               >
-                Hủy
+                Cancel
               </button>
               <button
                 onClick={handleSend}
@@ -321,7 +321,7 @@ function ComposeModal({ isOpen, onClose, initialDraft, onSent }: ComposeModalPro
                 }}
               >
                 {sending ? <Spinner className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
-                Gửi Email
+                Send Email
               </button>
             </div>
           </div>
@@ -379,7 +379,7 @@ export default function ChatPage() {
         }))
       );
     } catch {
-      toast.error('Không thể tải lịch sử chat');
+      toast.error('Failed to load chat history');
     }
   };
 
@@ -396,9 +396,9 @@ export default function ChatPage() {
       await aiApi.deleteSession(sid);
       setSessions((prev) => prev.filter((s) => s.id !== sid && s.sessionId !== sid));
       if (sessionId === sid) newChat();
-      toast.success('Đã xóa cuộc trò chuyện');
+      toast.success('Conversation deleted');
     } catch {
-      toast.error('Xóa thất bại');
+      toast.error('Failed to delete');
     } finally {
       setDeletingId(null);
     }
@@ -418,7 +418,7 @@ export default function ChatPage() {
     try {
       await aiApi.deleteMessage(messageId);
     } catch {
-      toast.error('Xóa tin nhắn thất bại');
+      toast.error('Failed to delete message');
       loadSession(sessionId);
     }
   };
@@ -442,12 +442,12 @@ export default function ChatPage() {
           body: htmlBody,
         });
       }
-      toast.success('Email đã được gửi thành công! 🎉');
+      toast.success('Email sent successfully! 🎉');
       setMessages((prev) =>
         prev.map((m) => (m.id === messageId ? { ...m, draft: null } : m))
       );
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Gửi email thất bại');
+      toast.error(err.response?.data?.detail || 'Failed to send email');
     } finally {
       setSendingDrafts((prev) => ({ ...prev, [messageId]: false }));
     }
@@ -490,7 +490,7 @@ export default function ChatPage() {
       }
       loadSessions();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'AI tạm thời không khả dụng');
+      toast.error(err.response?.data?.detail || 'AI temporarily unavailable');
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
     } finally {
       setLoading(false);
@@ -510,7 +510,7 @@ export default function ChatPage() {
         isOpen={composeOpen}
         onClose={() => setComposeOpen(false)}
         initialDraft={composeDraft}
-        onSent={() => toast.success('Email đã gửi thành công!')}
+        onSent={() => toast.success('Email sent successfully!')}
       />
 
       <div className="flex h-full" style={{ background: 'var(--bg-primary)' }}>
@@ -534,14 +534,14 @@ export default function ChatPage() {
             </div>
             <button onClick={newChat} className="w-full btn-ghost justify-center gap-2 text-xs py-2">
               <Plus className="w-3.5 h-3.5" />
-              Cuộc trò chuyện mới
+              New Conversation
             </button>
           </div>
 
           {/* Sessions list */}
           <div className="flex-1 overflow-auto p-3 space-y-1">
             <p className="text-xs font-medium px-2 pb-1" style={{ color: 'var(--text-muted)' }}>
-              Lịch sử
+              History
             </p>
             {sessionsLoading ? (
               <div className="flex justify-center pt-6">
@@ -551,7 +551,7 @@ export default function ChatPage() {
               <div className="text-center pt-8 space-y-2">
                 <MessageSquare className="w-8 h-8 mx-auto" style={{ color: 'var(--text-muted)' }} />
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Chưa có cuộc trò chuyện
+                  No conversations yet
                 </p>
               </div>
             ) : (
@@ -597,7 +597,7 @@ export default function ChatPage() {
                       disabled={deletingId === sid}
                       className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg"
                       style={{ color: '#ef4444' }}
-                      title="Xóa chat"
+                      title="Delete conversation"
                     >
                       {deletingId === sid ? (
                         <Spinner className="w-3 h-3" />
@@ -623,7 +623,7 @@ export default function ChatPage() {
               }}
             >
               <PenSquare className="w-4 h-4" />
-              Soạn Email Mới
+              Compose New Email
             </button>
           </div>
         </div>
@@ -647,7 +647,7 @@ export default function ChatPage() {
                 <div className="flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                    Trực tuyến · Tìm kiếm thông minh
+                    Online · Smart Search
                   </div>
                 </div>
               </div>
@@ -671,7 +671,7 @@ export default function ChatPage() {
               }}
             >
               <PenSquare className="w-3.5 h-3.5" />
-              Soạn Email
+              Compose Email
             </button>
           </div>
 
@@ -694,9 +694,9 @@ export default function ChatPage() {
                     <Bot className="w-10 h-10 text-white" />
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold mb-2">Tôi có thể giúp gì cho bạn?</h2>
+                    <h2 className="text-2xl font-bold mb-2">How can I help you?</h2>
                     <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      Tìm kiếm email, tóm tắt, soạn thảo — tất cả chỉ trong một cuộc trò chuyện
+                      Search, summarize, compose — all in one conversation
                     </p>
                   </div>
                 </div>
@@ -728,7 +728,7 @@ export default function ChatPage() {
                 </div>
 
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Thử gõ: "tìm email từ [tên]" hoặc "soạn email cho sếp về dự án X"
+                  Try typing: "find emails from [name]" or "compose email to boss about project X"
                 </p>
               </motion.div>
             )}
@@ -802,7 +802,7 @@ export default function ChatPage() {
                           ) : (
                             <Send className="w-3 h-3" />
                           )}
-                          Gửi ngay
+                          Send Now
                         </button>
                         <button
                           onClick={() => openComposeWithDraft(message.draft!)}
@@ -814,7 +814,7 @@ export default function ChatPage() {
                           }}
                         >
                           <PenSquare className="w-3 h-3" />
-                          Chỉnh sửa
+                          Edit
                         </button>
                       </motion.div>
                     )}
@@ -825,7 +825,7 @@ export default function ChatPage() {
                     onClick={() => handleDeleteMessage(message.id)}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg self-center"
                     style={{ color: '#ef4444' }}
-                    title="Xóa tin nhắn"
+                    title="Delete message"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -895,7 +895,7 @@ export default function ChatPage() {
                   e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder="Hỏi về email... hoặc 'soạn email cho...' (Enter để gửi)"
+                placeholder="Ask about your emails... or 'compose email to...' (Enter to send)"
                 rows={1}
                 className="flex-1 bg-transparent outline-none resize-none text-sm"
                 style={{
@@ -907,7 +907,7 @@ export default function ChatPage() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={() => openComposeWithDraft(undefined)}
-                  title="Soạn email"
+                  title="Compose email"
                   className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
                   style={{ color: 'var(--text-muted)' }}
                   onMouseOver={(e) => {
@@ -934,7 +934,7 @@ export default function ChatPage() {
               </div>
             </div>
             <p className="text-xs text-center mt-2" style={{ color: 'var(--text-muted)' }}>
-              Tìm kiếm theo tên người gửi, nội dung, hoặc tiêu đề · AI sẽ tự hiểu yêu cầu của bạn
+              Search by sender name, content, or subject · AI will automatically understand your request
             </p>
           </div>
         </div>

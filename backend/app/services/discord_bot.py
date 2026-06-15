@@ -10,13 +10,63 @@ import app.services.gmail_service as gmail_service
 
 logger = logging.getLogger(__name__)
 
+class EditDraftModal(discord.ui.Modal, title="Edit Email"):
+    to_input = discord.ui.TextInput(label="To", required=False, max_length=200)
+    subject_input = discord.ui.TextInput(label="Subject", required=False, max_length=200)
+    body_input = discord.ui.TextInput(label="Body", style=discord.TextStyle.paragraph, required=True, max_length=4000)
+
+    def __init__(self, user_id: str, draft: dict, view: discord.ui.View):
+        super().__init__()
+        self.user_id = user_id
+        self.draft = draft
+        self.view = view
+        
+        self.to_input.default = draft.get("to") or ""
+        self.subject_input.default = draft.get("subject") or ""
+        self.body_input.default = draft.get("body") or ""
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        
+        new_to = self.to_input.value or ""
+        new_subject = self.subject_input.value or ""
+        new_body = self.body_input.value or ""
+        
+        self.draft["to"] = new_to
+        self.draft["subject"] = new_subject
+        self.draft["body"] = new_body
+        
+        draft_id = self.draft.get("id")
+        if draft_id:
+            try:
+                async with AsyncSessionLocal() as db:
+                    await gmail_service.update_draft(self.user_id, db, draft_id, new_to, new_subject, new_body)
+            except Exception as e:
+                logger.error(f"Failed to update Gmail draft: {e}", exc_info=True)
+                
+        header = "📝 **Draft Email Updated**\n\n"
+        new_content = (
+            f"{header}"
+            f"**To:** {new_to or '(no recipient)'}\n"
+            f"**Subject:** {new_subject or '(no subject)'}\n\n"
+            f"---\n\n"
+            f"{new_body}\n\n"
+            f"---\n\n"
+            f"_You can edit and send this email using the buttons below._"
+        )
+        if len(new_content) > 1990:
+            new_content = new_content[:1987] + "..."
+            
+        await interaction.message.edit(content=new_content, view=self.view)
+
+
 class DraftView(discord.ui.View):
     def __init__(self, user_id: str, draft: dict, timeout=180.0):
         super().__init__(timeout=timeout)
         self.user_id = user_id
         self.draft = draft
 
-    @discord.ui.button(label="Gửi ngay", style=discord.ButtonStyle.success, emoji="✉️")
+    @discord.ui.button(label="Send Now", style=discord.ButtonStyle.success, emoji="✉️")
     async def send_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         
@@ -39,22 +89,27 @@ class DraftView(discord.ui.View):
                 else:
                     await gmail_service.send_email(self.user_id, db, to, subject, html_body)
                     
-            await interaction.followup.send("Email đã được gửi thành công! 🎉", ephemeral=True)
+            await interaction.followup.send("Email sent successfully! 🎉", ephemeral=True)
             
             for child in self.children:
                 child.disabled = True
-            await interaction.message.edit(content=f"{interaction.message.content}\n\n✅ **Đã gửi thành công!**", view=self)
+            await interaction.message.edit(content=f"{interaction.message.content}\n\n✅ **Sent successfully!**", view=self)
             self.stop()
         except Exception as e:
             logger.error(f"Failed to send email from Discord button: {e}", exc_info=True)
-            await interaction.followup.send("⚠️ Gửi email thất bại. Vui lòng kiểm tra lại tài khoản hoặc thử lại sau.", ephemeral=True)
+            await interaction.followup.send("⚠️ Failed to send email. Please check your account settings and try again.", ephemeral=True)
 
-    @discord.ui.button(label="Hủy", style=discord.ButtonStyle.secondary, emoji="❌")
+    @discord.ui.button(label="Edit", style=discord.ButtonStyle.primary, emoji="✍️")
+    async def edit_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        modal = EditDraftModal(user_id=self.user_id, draft=self.draft, view=self)
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         for child in self.children:
             child.disabled = True
-        await interaction.message.edit(content=f"{interaction.message.content}\n\n❌ **Đã hủy gửi.**", view=self)
+        await interaction.message.edit(content=f"{interaction.message.content}\n\n❌ **Cancelled.**", view=self)
         self.stop()
 
 # Configure Intents

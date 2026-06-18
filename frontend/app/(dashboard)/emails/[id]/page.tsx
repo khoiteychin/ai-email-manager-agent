@@ -282,6 +282,7 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
                   <html>
                     <head>
                       <meta charset="utf-8">
+                      <meta name="referrer" content="no-referrer">
                       <style>
                         body {
                           font-family: sans-serif;

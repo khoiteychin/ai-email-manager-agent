@@ -43,26 +43,4 @@ async def verify_firebase_token(token: str) -> Optional[dict]:
         return {"uid": decoded["uid"], "email": decoded.get("email", "")}
     except Exception as e:
         logger.warning(f"Firebase token verification failed: {e}")
-
-    # Secure fallback: manual JWT decode
-    try:
-        import base64
-        parts = token.split(".")
-        if len(parts) == 3:
-            padded = parts[1] + "=" * (4 - len(parts[1]) % 4)
-            payload = json.loads(base64.urlsafe_b64decode(padded).decode("utf-8"))
-
-            expected_issuer = f"https://securetoken.google.com/{settings.FIREBASE_PROJECT_ID}"
-            import time
-            if (
-                payload.get("iss") == expected_issuer
-                and payload.get("aud") == settings.FIREBASE_PROJECT_ID
-                and payload.get("exp", 0) > time.time()
-            ):
-                uid = payload.get("user_id") or payload.get("sub") or payload.get("uid")
-                if uid:
-                    return {"uid": uid, "email": payload.get("email", "")}
-    except Exception as e:
-        logger.error(f"Secure fallback failed: {e}")
-
-    return None
+        return None

@@ -93,10 +93,12 @@ async def handle_oauth_callback(code: str, state: str, db: AsyncSession) -> None
         account = GmailAccount(user_id=user_id)
         db.add(account)
 
+    from app.utils.crypto import encrypt_data
+
     account.google_id = google_id
     account.email = gmail_email
-    account.access_token = credentials.token
-    account.refresh_token = credentials.refresh_token or account.refresh_token
+    account.access_token = encrypt_data(credentials.token)
+    account.refresh_token = encrypt_data(credentials.refresh_token) if credentials.refresh_token else account.refresh_token
     if credentials.expiry:
         account.token_expiry = credentials.expiry
 
@@ -121,15 +123,17 @@ async def handle_oauth_callback(code: str, state: str, db: AsyncSession) -> None
 
 
 async def get_gmail_service(user_id: str, db: AsyncSession):
+    from app.utils.crypto import encrypt_data, decrypt_data
+
     result = await db.execute(select(GmailAccount).where(GmailAccount.user_id == user_id))
     account = result.scalar_one_or_none()
 
-    if not account or not account.refresh_token:
+    if not account or not decrypt_data(account.refresh_token):
         return None
 
     creds = Credentials(
-        token=account.access_token,
-        refresh_token=account.refresh_token,
+        token=decrypt_data(account.access_token),
+        refresh_token=decrypt_data(account.refresh_token),
         token_uri="https://oauth2.googleapis.com/token",
         client_id=settings.GOOGLE_CLIENT_ID,
         client_secret=settings.GOOGLE_CLIENT_SECRET,
@@ -152,7 +156,7 @@ async def get_gmail_service(user_id: str, db: AsyncSession):
                 None, lambda: creds.refresh(GoogleRequest())
             )
             # Persist refreshed token immediately
-            account.access_token = creds.token
+            account.access_token = encrypt_data(creds.token)
             if creds.expiry:
                 account.token_expiry = creds.expiry
             await db.commit()
@@ -164,8 +168,8 @@ async def get_gmail_service(user_id: str, db: AsyncSession):
     service = build("gmail", "v1", credentials=creds)
 
     # Also save if token changed due to implicit refresh during build
-    if creds.token != account.access_token:
-        account.access_token = creds.token
+    if creds.token != decrypt_data(account.access_token):
+        account.access_token = encrypt_data(creds.token)
         if creds.expiry:
             account.token_expiry = creds.expiry
         await db.commit()

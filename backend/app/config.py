@@ -32,6 +32,10 @@ class Settings(BaseSettings):
 
     # Telegram
     TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_SECRET_TOKEN: str = ""
+
+    # Secret key for encrypting sensitive fields in DB (e.g. Gmail tokens)
+    ENCRYPTION_KEY: str = ""
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,https://emailkhanh.freeddns.org"

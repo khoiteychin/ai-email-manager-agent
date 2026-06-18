@@ -85,7 +85,9 @@ async def sync_from_gmail(user_id: str, db: AsyncSession) -> int:
 
 
 @router.get("")
+@limiter.limit("60/minute")
 async def list_emails(
+    request: Request,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     category: Optional[str] = None,

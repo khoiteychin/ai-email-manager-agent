@@ -2,7 +2,7 @@ import logging
 import json
 import httpx
 from typing import Optional
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +36,7 @@ def oauth_popup_response(provider: str, success: bool, message: str = "") -> HTM
     <script>
       const payload = {json.dumps(payload)};
       if (window.opener) {{
-        window.opener.postMessage(payload, "*");
+        window.opener.postMessage(payload, "https://emailkhanh.freeddns.org");
       }}
       window.close();
       setTimeout(() => {{
@@ -49,24 +49,48 @@ def oauth_popup_response(provider: str, success: bool, message: str = "") -> HTM
 
 
 @router.get("/connect")
-async def connect(current_user: AuthUser = Depends(get_current_user)):
+async def connect(response: Response, current_user: AuthUser = Depends(get_current_user)):
     """Redirect to Discord OAuth"""
+    import secrets
+    csrf_token = secrets.token_urlsafe(32)
+    
+    # Store CSRF state token in HTTP-only secure cookie
+    response.set_cookie(
+        key="discord_oauth_state",
+        value=csrf_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=600  # 10 minutes
+    )
+    
+    state_value = f"{csrf_token}:{current_user.uid}"
     url = (
         f"https://discord.com/api/oauth2/authorize"
         f"?client_id={settings.DISCORD_CLIENT_ID}"
         f"&redirect_uri={settings.DISCORD_REDIRECT_URI}"
         f"&response_type=code"
         f"&scope=identify+guilds"
-        f"&state={current_user.uid}"
+        f"&state={state_value}"
     )
+    # Return a RedirectResponse with the set cookie
     return RedirectResponse(url=url)
 
 
 @router.get("/callback")
-async def callback(code: str, state: str, db: AsyncSession = Depends(get_db)):
+async def callback(request: Request, code: str, state: str, db: AsyncSession = Depends(get_db)):
     """Handle Discord OAuth callback"""
     try:
-        await ensure_user_exists(db, uid=state)
+        parts = state.split(":", 1)
+        if len(parts) != 2:
+            return oauth_popup_response("discord", False, "Invalid state parameter")
+        csrf_token, uid = parts[0], parts[1]
+        
+        cookie_csrf_token = request.cookies.get("discord_oauth_state")
+        if not cookie_csrf_token or cookie_csrf_token != csrf_token:
+            return oauth_popup_response("discord", False, "CSRF validation failed")
+
+        await ensure_user_exists(db, uid=uid)
 
         async with httpx.AsyncClient() as client:
             token_res = await client.post(
@@ -90,11 +114,11 @@ async def callback(code: str, state: str, db: AsyncSession = Depends(get_db)):
             discord_user = user_res.json()
 
         result = await db.execute(
-            select(DiscordAccount).where(DiscordAccount.user_id == state)
+            select(DiscordAccount).where(DiscordAccount.user_id == uid)
         )
         account = result.scalar_one_or_none()
         if not account:
-            account = DiscordAccount(user_id=state)
+            account = DiscordAccount(user_id=uid)
             db.add(account)
 
         account.discord_id = discord_user.get("id")
@@ -109,17 +133,22 @@ async def callback(code: str, state: str, db: AsyncSession = Depends(get_db)):
                     ON CONFLICT (user_id, provider)
                     DO UPDATE SET updated_at = EXCLUDED.updated_at
                 """),
-                {"user_id": state},
+                {"user_id": uid},
             )
             await db.commit()
         except Exception as integration_error:
             await db.rollback()
-            logger.error(f"Discord integration status update FAILED for user {state}: {integration_error}")
+            logger.error(f"Discord integration status update FAILED for user {uid}: {integration_error}")
 
-        return oauth_popup_response("discord", True)
+        # Construct final popup response (and clear the CSRF cookie by returning it)
+        resp = oauth_popup_response("discord", True)
+        resp.delete_cookie("discord_oauth_state")
+        return resp
     except Exception as e:
         logger.error(f"Discord callback error: {e}")
-        return oauth_popup_response("discord", False, str(e)[:100])
+        resp = oauth_popup_response("discord", False, str(e)[:100])
+        resp.delete_cookie("discord_oauth_state")
+        return resp
 
 
 class TestNotificationRequest(BaseModel):

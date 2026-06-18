@@ -12,6 +12,8 @@ from app.config import settings
 from app.models import GmailAccount, Email
 import app.services.gmail_service as gmail_service
 import app.services.ai_service as ai_service
+from app.utils.limiter import limiter
+from fastapi import HTTPException
 
 router = APIRouter(prefix="/gmail", tags=["Gmail"])
 logger = logging.getLogger(__name__)
@@ -35,7 +37,7 @@ def oauth_popup_response(provider: str, success: bool, message: str = "") -> HTM
     <script>
       const payload = {json.dumps(payload)};
       if (window.opener) {{
-        window.opener.postMessage(payload, "*");
+        window.opener.postMessage(payload, "https://emailkhanh.freeddns.org");
       }}
       window.close();
       setTimeout(() => {{
@@ -165,8 +167,27 @@ async def _sync_user_emails_background(user_id: str):
 
 
 @router.post("/webhook")
+@limiter.limit("200/minute")
 async def webhook(request: Request):
     """Receive Gmail Pub/Sub push notifications from Google"""
+    # Verify Google Pub/Sub JWT token (unless in development mode and no token is present)
+    auth_header = request.headers.get("Authorization", "")
+    if settings.ENVIRONMENT == "development" and not auth_header:
+        logger.warning("Bypassing Gmail webhook signature check in development mode.")
+    else:
+        if not auth_header.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+        token = auth_header.split(" ", 1)[1]
+        try:
+            from google.auth.transport import requests as google_requests
+            from google.oauth2 import id_token
+            id_info = id_token.verify_oauth2_token(token, google_requests.Request())
+            if id_info.get("iss") not in ["accounts.google.com", "https://accounts.google.com"]:
+                raise HTTPException(status_code=401, detail="Invalid token issuer")
+        except Exception as e:
+            logger.error(f"Gmail webhook auth token verification failed: {e}")
+            raise HTTPException(status_code=401, detail="Invalid Pub/Sub token")
+
     try:
         body = await request.json()
         data = body.get("message", {}).get("data", "")

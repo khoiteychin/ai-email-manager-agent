@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user, AuthUser
@@ -11,21 +11,21 @@ router = APIRouter(prefix="/ai", tags=["AI"])
 
 
 class ChatRequest(BaseModel):
-    message: str
-    sessionId: Optional[str] = None
+    message: str = Field(..., max_length=10000)
+    sessionId: Optional[str] = Field(None, max_length=255)
 
 
 class DraftRequest(BaseModel):
-    instruction: str
-    emailId: Optional[str] = None
-    context: Optional[str] = None
+    instruction: str = Field(..., max_length=10000)
+    emailId: Optional[str] = Field(None, max_length=255)
+    context: Optional[str] = Field(None, max_length=20000)
 
 
 class SendEmailRequest(BaseModel):
-    to: str
-    subject: str
-    body: str
-    emailId: Optional[str] = None
+    to: str = Field(..., max_length=500)
+    subject: str = Field(..., max_length=1000)
+    body: str = Field(..., max_length=50000)
+    emailId: Optional[str] = Field(None, max_length=255)
 
 
 @router.post("/chat")

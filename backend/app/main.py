@@ -183,6 +183,13 @@ app.add_middleware(
 # This middleware only adds API-specific headers that Nginx does not set.
 @app.middleware("http")
 async def add_security_headers(request, call_next):
+    # Giới hạn kích thước request body (Chống DoS)
+    content_length = request.headers.get("content-length")
+    if content_length:
+        if int(content_length) > 10 * 1024 * 1024:  # 10 MB
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=413, content={"detail": "Request entity too large"})
+
     response = await call_next(request)
     # Ngăn trình duyệt tự ý đoán kiểu tệp tin sai lệch (Chống MIME Sniffing)
     response.headers["X-Content-Type-Options"] = "nosniff"

@@ -261,7 +261,7 @@ export default function DashboardPage() {
                 Categories
               </h2>
               <BrutalCard>
-                <BrutalCardContent className="p-6 space-y-5">
+                <BrutalCardContent className="p-6 flex flex-col gap-5">
                   {stats?.categoryBreakdown?.length === 0 ? (
                     <p className="text-sm font-bold text-center py-8 text-[var(--text-muted)]">
                       No data yet

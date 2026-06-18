@@ -239,59 +239,57 @@ export default function EmailsPage() {
       </AnimatePresence>
 
       {/* Filters & Search */}
-      <BrutalCard className="bg-[var(--bg-card)]">
-        <BrutalCardContent className="p-4 space-y-4">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--border)]" />
-            <input
-              type="text"
-              placeholder="Search emails..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className="w-full pl-12 pr-4 py-3 rounded-xl text-base font-bold outline-none border-2 border-[var(--border)] bg-white shadow-[inset_2px_2px_0px_rgba(0,0,0,0.05)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-light)] transition-all"
-            />
-          </div>
+      <div className="space-y-4">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]" />
+          <input
+            type="text"
+            placeholder="Search emails..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="w-full pl-12 pr-4 py-3 rounded-xl text-base font-bold outline-none border-2 border-[var(--border)] bg-[var(--bg-card)] shadow-[var(--neo-shadow)] focus:shadow-[var(--neo-shadow-hover)] transition-all"
+          />
+        </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <Filter className="w-4 h-4 mr-1 text-[var(--border)]" />
-            {(() => {
-              const getCategoryCount = (cat: string) => {
-                if (cat === 'All') return stats?.totalEmails || meta.total || 0;
-                const item = stats?.categoryBreakdown?.find(
-                  (b) => b.category.toLowerCase() === cat.toLowerCase()
-                );
-                return item ? item.count : 0;
-              };
-              return CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => { setCategory(cat); setPage(1); }}
-                  className="px-4 py-2 rounded-full text-sm font-bold transition-all duration-150 flex items-center gap-2 border-2 active:translate-y-1 active:shadow-none"
+        <div className="flex items-center gap-2 flex-wrap">
+          <Filter className="w-4 h-4 mr-1 text-[var(--text-secondary)]" />
+          {(() => {
+            const getCategoryCount = (cat: string) => {
+              if (cat === 'All') return stats?.totalEmails || meta.total || 0;
+              const item = stats?.categoryBreakdown?.find(
+                (b) => b.category.toLowerCase() === cat.toLowerCase()
+              );
+              return item ? item.count : 0;
+            };
+            return CATEGORIES.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => { setCategory(cat); setPage(1); }}
+                className="px-4 py-2 rounded-full text-sm font-bold transition-all duration-150 flex items-center gap-2 border-2 active:translate-y-1 active:shadow-none"
+                style={{
+                  background: category === cat ? 'var(--accent)' : 'var(--bg-card)',
+                  borderColor: 'var(--border)',
+                  color: 'var(--text-primary)',
+                  boxShadow: category === cat ? '2px 2px 0px var(--border)' : 'var(--neo-shadow)',
+                  transform: category === cat ? 'translate(1px, 1px)' : 'none',
+                }}
+              >
+                <span>{cat}</span>
+                <span
+                  className="px-2 py-0.5 rounded-full text-[11px] font-black border-2"
                   style={{
-                    background: category === cat ? 'var(--accent)' : 'var(--bg-card)',
+                    background: category === cat ? 'rgba(255,255,255,0.3)' : 'var(--bg-secondary)',
                     borderColor: 'var(--border)',
                     color: 'var(--text-primary)',
-                    boxShadow: category === cat ? '2px 2px 0px var(--border)' : '3px 3px 0px var(--border)',
-                    transform: category === cat ? 'translate(1px, 1px)' : 'none',
                   }}
                 >
-                  <span>{cat}</span>
-                  <span
-                    className="px-2 py-0.5 rounded-full text-[11px] font-black border-2"
-                    style={{
-                      background: category === cat ? 'rgba(255,255,255,0.3)' : 'var(--bg-secondary)',
-                      borderColor: 'var(--border)',
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    {getCategoryCount(cat)}
-                  </span>
-                </button>
-              ));
-            })()}
-          </div>
-        </BrutalCardContent>
-      </BrutalCard>
+                  {getCategoryCount(cat)}
+                </span>
+              </button>
+            ));
+          })()}
+        </div>
+      </div>
 
       {/* Email list */}
       {loading ? (

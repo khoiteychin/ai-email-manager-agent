@@ -895,7 +895,7 @@ export default function ChatPage() {
                 onKeyDown={handleKeyDown}
                 placeholder="Ask about your emails... or 'compose email to...' (Enter to send)"
                 rows={1}
-                className="flex-1 bg-transparent outline-none resize-none text-sm"
+                className="flex-1 bg-transparent outline-none resize-none text-sm py-2"
                 style={{
                   color: 'var(--text-primary)',
                   caretColor: 'var(--accent)',

@@ -1,4 +1,11 @@
 import { clsx } from 'clsx';
+import { motion } from 'framer-motion';
+import {
+  IllustrationLoading,
+  IllustrationEmptyInbox,
+  IllustrationEmptySearch,
+  IllustrationEmptyChat,
+} from './illustrations';
 
 // ─── Badge ───────────────────────────────────────────────────
 const CATEGORY_CLASSES: Record<string, string> = {
@@ -47,12 +54,14 @@ interface CardProps {
 
 export function Card({ children, className, hover, onClick }: CardProps) {
   return (
-    <div
+    <motion.div
+      whileHover={hover ? { y: -2 } : undefined}
+      transition={hover ? { type: 'spring', stiffness: 300 } : undefined}
       className={clsx(hover ? 'glass-hover cursor-pointer' : 'glass', className)}
       onClick={onClick}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -84,47 +93,56 @@ export function Button({
     lg: 'px-6 py-3 text-base',
   }[size];
 
+  const motionProps = variant === 'primary' && !disabled && !loading ? {
+    whileHover: { scale: 1.02 },
+    whileTap: { scale: 0.97 },
+    transition: { type: 'spring', stiffness: 400 }
+  } : {};
+
   if (variant === 'primary') {
     return (
-      <button
+      <motion.button
         type={type}
         disabled={disabled || loading}
         onClick={onClick}
         className={clsx('btn-primary', sizeClass, className, (disabled || loading) && 'opacity-50 cursor-not-allowed hover:transform-none')}
+        {...motionProps}
       >
         {loading && (
           <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
         )}
         {children}
-      </button>
+      </motion.button>
     );
   }
 
   if (variant === 'danger') {
     return (
-      <button
+      <motion.button
         type={type}
         disabled={disabled || loading}
         onClick={onClick}
         className={clsx('inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 text-red-400 border border-red-500/20 hover:bg-red-500/10 hover:border-red-500/40', sizeClass, className)}
+        {...motionProps}
       >
         {children}
-      </button>
+      </motion.button>
     );
   }
 
   return (
-    <button
+    <motion.button
       type={type}
       disabled={disabled || loading}
       onClick={onClick}
       className={clsx('btn-ghost', sizeClass, className, (disabled || loading) && 'opacity-50 cursor-not-allowed')}
+      {...motionProps}
     >
       {loading && (
         <span className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
       )}
       {children}
-    </button>
+    </motion.button>
   );
 }
 
@@ -161,27 +179,37 @@ export function Input({ label, error, icon, className, ...props }: InputProps) {
 
 // ─── Loading spinner ─────────────────────────────────────────
 export function Spinner({ className }: { className?: string }) {
-  return (
-    <div
-      className={clsx('w-6 h-6 border-2 border-t-blue-400 rounded-full animate-spin', className)}
-      style={{ borderColor: 'var(--accent-glow)', borderTopColor: 'var(--accent)' }}
-    />
-  );
+  return <IllustrationLoading className={className} />;
 }
 
 // ─── Empty state ─────────────────────────────────────────────
-export function EmptyState({ icon, title, description }: {
-  icon: React.ReactNode;
+interface EmptyStateProps {
+  variant?: 'inbox' | 'search' | 'chat' | 'default';
   title: string;
   description: string;
-}) {
+}
+
+export function EmptyState({ variant = 'default', title, description }: EmptyStateProps) {
+  let Illustration = IllustrationEmptyInbox;
+  if (variant === 'search') {
+    Illustration = IllustrationEmptySearch;
+  } else if (variant === 'chat') {
+    Illustration = IllustrationEmptyChat;
+  }
+
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: 'var(--accent-glow)', border: '1px solid var(--border-hover)' }}>
-        <span style={{ color: 'var(--icon-accent)' }}>{icon}</span>
-      </div>
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 200 }}
+        className="mb-4"
+      >
+        <Illustration />
+      </motion.div>
       <h3 className="text-base font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{title}</h3>
       <p className="text-sm max-w-xs" style={{ color: 'var(--text-muted)' }}>{description}</p>
     </div>
   );
 }
+

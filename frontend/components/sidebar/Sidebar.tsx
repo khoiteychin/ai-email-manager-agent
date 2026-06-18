@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth-context';
+import { IllustrationEmailLogo } from '@/components/ui/illustrations';
 import {
   LayoutDashboard,
   Mail,
@@ -23,6 +24,16 @@ const navItems = [
   { href: '/chat', icon: MessageSquare, label: 'AI Chat' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
+
+const containerVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06 } }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, x: -8 },
+  show: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 300 } }
+};
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -60,39 +71,53 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="p-6 border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-3">
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: 'var(--theme-gradient)' }}
-          >
-            <Zap className="w-5 h-5 text-white" />
-          </div>
+          <IllustrationEmailLogo />
           <div>
-            <div className="text-sm font-bold" style={{ color: 'var(--text-sidebar-logo)' }}>AI Email</div>
-            <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              Manager
+            <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              AI Email
             </div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Manager</div>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      <motion.nav
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="flex-1 p-4 space-y-1"
+      >
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
           return (
             <Link key={item.href} href={item.href}>
               <motion.div
-                whileHover={{ x: 2 }}
-                className={`sidebar-item ${isActive ? 'active' : ''}`}
+                variants={itemVariants}
+                className="relative"
               >
-                <item.icon className="w-4 h-4 flex-shrink-0" />
-                <span className="flex-1">{item.label}</span>
-                {isActive && <ChevronRight className="w-3 h-3 opacity-60" />}
+                <motion.div
+                  whileHover={{ x: 2 }}
+                  className={`sidebar-item ${isActive ? 'active' : ''}`}
+                  style={{ position: 'relative', zIndex: 1 }}
+                >
+                  <item.icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="flex-1">{item.label}</span>
+                  {isActive && <ChevronRight className="w-3 h-3 opacity-60" />}
+                </motion.div>
+                {isActive && (
+                  <motion.div
+                    layoutId="activeNavIndicator"
+                    className="absolute inset-0 rounded-xl"
+                    style={{ background: 'var(--accent-light)', zIndex: 0 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                  />
+                )}
               </motion.div>
             </Link>
           );
         })}
-      </nav>
+      </motion.nav>
 
       {/* User section */}
       <div className="p-4 border-t" style={{ borderColor: 'var(--border)' }}>

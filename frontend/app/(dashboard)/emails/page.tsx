@@ -51,6 +51,7 @@ export default function EmailsPage() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   // Bug #4: new email banner state
   const [newEmailBanner, setNewEmailBanner] = useState<{ count: number; emails: Array<{ subject: string; sender: string }> } | null>(null);
+  const [syncLimit, setSyncLimit] = useState(50);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchStats = async () => {
@@ -169,20 +170,46 @@ export default function EmailsPage() {
           </p>
         </div>
 
-        {/* Manual Refresh button */}
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 disabled:opacity-50"
-          style={{
-            background: 'var(--accent-glow)',
-            border: '1px solid var(--border)',
-            color: 'var(--accent)',
-          }}
-        >
-          <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'Syncing...' : 'Refresh'}
-        </button>
+        {/* Sync Limit Selector and Refresh Button */}
+        <div className="flex items-center gap-2">
+          <select
+            value={syncLimit}
+            onChange={(e) => setSyncLimit(Number(e.target.value))}
+            disabled={syncing}
+            className="px-3 py-2 rounded-xl text-sm outline-none cursor-pointer transition-all duration-200"
+            style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-primary)',
+            }}
+            title="Số lượng email muốn đồng bộ"
+          >
+            <option value={10}>10 emails</option>
+            <option value={20}>20 emails</option>
+            <option value={50}>50 emails</option>
+            <option value={100}>100 emails</option>
+            <option value={200}>200 emails</option>
+          </select>
+
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 disabled:opacity-50"
+            style={{
+              background: 'var(--accent-glow)',
+              border: '1px solid var(--border)',
+              color: 'var(--accent)',
+            }}
+          >
+            <motion.div
+              animate={syncing ? { rotate: 360 } : { rotate: 0 }}
+              transition={{ duration: 0.6, repeat: syncing ? Infinity : 0, ease: 'linear' }}
+            >
+              <RefreshCw className="w-4 h-4" />
+            </motion.div>
+            {syncing ? 'Syncing...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {/* Bug #4: New Email Banner – shown when polling detects new emails */}
@@ -277,17 +304,18 @@ export default function EmailsPage() {
           <Spinner />
         </div>
       ) : emails.length === 0 ? (
-        <EmptyState
-          icon={<Mail className="w-8 h-8" />}
-          title="No emails found"
-          description="Try adjusting your search or filters, or click Refresh to sync Gmail"
-        />
+        search ? (
+          <EmptyState variant="search" title="No results" description="Try different keywords" />
+        ) : (
+          <EmptyState variant="inbox" title="Inbox is empty" description="Click Refresh to sync Gmail" />
+        )
       ) : (
         <div className="space-y-2">
           <AnimatePresence>
             {emails.map((email, i) => (
               <motion.div
                 key={email.id}
+                layout
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}

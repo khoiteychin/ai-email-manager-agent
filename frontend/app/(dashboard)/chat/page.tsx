@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { aiApi, draftsApi } from '@/lib/api';
 import { Spinner } from '@/components/ui';
+import { IllustrationEmptyChat } from '@/components/ui/illustrations';
 import {
   Send,
   Bot,
@@ -683,20 +684,14 @@ export default function ChatPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="flex flex-col items-center justify-center h-full text-center space-y-8"
               >
-                <div className="space-y-4">
-                  <div
-                    className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto"
-                    style={{
-                      background: 'var(--theme-gradient)',
-                      boxShadow: '0 12px 40px rgba(99, 102, 241, 0.3)',
-                    }}
-                  >
-                    <Bot className="w-10 h-10 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold mb-2">How can I help you?</h2>
-                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      Search, summarize, compose — all in one conversation
+                <div className="flex flex-col items-center gap-6">
+                  <IllustrationEmptyChat />
+                  <div className="text-center">
+                    <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                      Ask me anything about your emails
+                    </h2>
+                    <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>
+                      Summarize, find, or compose — I've got you
                     </p>
                   </div>
                 </div>
@@ -704,9 +699,12 @@ export default function ChatPage() {
                 {/* Suggestion chips */}
                 <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
                   {SUGGESTIONS.map((s) => (
-                    <button
+                    <motion.button
                       key={s.text}
                       onClick={() => sendMessage(s.text)}
+                      whileHover={{ y: -3, scale: 1.02 }}
+                      whileTap={{ scale: 0.97 }}
+                      transition={{ type: 'spring', stiffness: 400 }}
                       className="p-4 rounded-2xl text-left text-sm transition-all duration-200 group"
                       style={{
                         background: 'var(--bg-card)',
@@ -723,7 +721,7 @@ export default function ChatPage() {
                     >
                       <div className="text-xl mb-2">{s.icon}</div>
                       <div style={{ color: 'var(--text-secondary)' }}>{s.text}</div>
-                    </button>
+                    </motion.button>
                   ))}
                 </div>
 

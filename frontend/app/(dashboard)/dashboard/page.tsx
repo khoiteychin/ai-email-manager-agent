@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { userApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { Card, CategoryBadge, PriorityDot, Spinner, EmptyState } from '@/components/ui';
+import { IllustrationEmptyInbox } from '@/components/ui/illustrations';
 import {
   Mail,
   TrendingUp,
@@ -105,6 +106,17 @@ export default function DashboardPage() {
         <div className="flex justify-center py-20">
           <Spinner />
         </div>
+      ) : stats?.totalEmails === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center py-10 gap-4"
+        >
+          <IllustrationEmptyInbox />
+          <p style={{ color: 'var(--text-muted)' }} className="text-sm">
+            Connect Gmail in Settings to get started
+          </p>
+        </motion.div>
       ) : (
         <>
           {/* Stat cards */}
@@ -156,7 +168,7 @@ export default function DashboardPage() {
               </div>
               {stats?.recentActivity?.length === 0 ? (
                 <EmptyState
-                  icon={<Mail className="w-8 h-8" />}
+                  variant="inbox"
                   title="No emails yet"
                   description="Connect your Gmail account to start seeing emails here"
                 />

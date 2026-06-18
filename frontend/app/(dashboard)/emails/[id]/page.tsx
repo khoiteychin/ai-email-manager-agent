@@ -27,6 +27,7 @@ interface Email {
   fromAddress: string;
   receiver: string;
   toAddress: string;
+  body: string;
   bodyText: string;
   bodyPreview: string;
   summary: string;
@@ -269,10 +270,45 @@ export default function EmailDetailPage({ params }: { params: { id: string } }) 
           )}
 
           {/* Body */}
-          {(email.bodyPreview || email.bodyText) && (
+          {email.body ? (
             <div
-              className="p-4 rounded-xl"
-              style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+              className="rounded-2xl overflow-hidden border-2"
+              style={{ borderColor: 'var(--border)', background: '#FFFFFF' }}
+            >
+              <iframe
+                title="Email Body"
+                srcDoc={`
+                  <!DOCTYPE html>
+                  <html>
+                    <head>
+                      <meta charset="utf-8">
+                      <style>
+                        body {
+                          font-family: sans-serif;
+                          color: #2D2A26;
+                          margin: 16px;
+                          line-height: 1.5;
+                        }
+                        img {
+                          max-width: 100%;
+                          height: auto;
+                        }
+                      </style>
+                    </head>
+                    <body>
+                      ${email.body}
+                    </body>
+                  </html>
+                `}
+                className="w-full"
+                style={{ height: '500px', background: '#FFFFFF' }}
+                sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+              />
+            </div>
+          ) : (email.bodyPreview || email.bodyText) && (
+            <div
+              className="p-4 rounded-xl border-2"
+              style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
             >
               <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>
                 {email.bodyPreview || email.bodyText}

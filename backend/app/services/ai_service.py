@@ -45,6 +45,18 @@ def check_rate_limit(user_id: str):
     user_requests.append(now)
     _rate_limits[user_id] = user_requests
 
+    # Periodic cleanup of expired entries to prevent memory leak
+    expired_keys = []
+    for uid, reqs in list(_rate_limits.items()):
+        active_reqs = [r for r in reqs if now - r < 60]
+        if not active_reqs:
+            expired_keys.append(uid)
+        else:
+            _rate_limits[uid] = active_reqs
+    for uid in expired_keys:
+        if uid in _rate_limits:
+            del _rate_limits[uid]
+
 # ─── Token Budget & Truncation ────────────────────────────────
 def count_tokens(text: str, model: str = "gpt-4o-mini") -> int:
     try:
@@ -86,23 +98,34 @@ class IntentSchema(BaseModel):
     draft_body_hint: Optional[str] = None
     reply_target_query: Optional[str] = None
 
-async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI) -> dict:
+async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI, history: list = None) -> dict:
     """
-    Detect user intent from message. Returns a dict with:
-    - intent: "search_sender" | "compose_draft" | "send_email" | "recent" | "general"
+    Detect user intent from message, taking conversation history into account. Returns a dict with:
+    - intent: "search_sender" | "search_date" | "compose_draft" | "send_email" | "recent" | "general"
     - sender_query: extracted sender name/email (for search_sender)
     - draft_info: {to, subject, body_hint} (for compose_draft/send_email)
     - reply_target_query: search query description if replying to a specific email
+    - date_from: ISO date string for search_date start
+    - date_to: ISO date string for search_date end
     """
     check_rate_limit(user_id)
-    prompt = f"""Analyze this user message about emails and return a JSON object.
+    
+    history_str = ""
+    if history:
+        # Include last 4 messages for follow-up context
+        recent_history = history[-4:]
+        history_str = "Recent conversation history:\n" + "\n".join(f"{m.role}: {m.content[:200]}" for m in recent_history) + "\n\n"
+
+    prompt = f"""{history_str}Analyze this user message about emails and return a JSON object.
 
 Message: "{message}"
 
 Return JSON with:
 {{
-  "intent": "search_sender" | "compose_draft" | "send_email" | "recent" | "general",
+  "intent": "search_sender" | "search_date" | "compose_draft" | "send_email" | "recent" | "general",
   "sender_query": "extracted person name or email address if searching by sender, otherwise null",
+  "date_from": "extracted start date in ISO format (YYYY-MM-DD) if searching by date/time, otherwise null",
+  "date_to": "extracted end date in ISO format (YYYY-MM-DD) if searching by date/time, otherwise null",
   "draft_to": "recipient email or name if composing, otherwise null",
   "draft_subject": "email subject if mentioned, otherwise null",
   "draft_body_hint": "brief description of what the email should say, otherwise null",
@@ -121,6 +144,8 @@ Examples:
 - "có email nào mới nhận hôm nay không" -> intent: "recent"
 - "show my latest emails" -> intent: "recent"
 - "hôm nay có thư nào mới không?" -> intent: "recent"
+- "find emails from last week" -> intent: "search_date", date_from: "2026-06-12", date_to: "2026-06-19"
+- "thư nhận được ngày 13/06" -> intent: "search_date", date_from: "2026-06-13", date_to: "2026-06-13"
 - "hi" -> intent: "general"
 """
     try:
@@ -143,8 +168,10 @@ Examples:
 async def search_emails_by_sender(
     user_id: str, sender_query: str, limit: int, db: AsyncSession
 ) -> list[Email]:
-    """Search emails by sender name or email address (case-insensitive substring)."""
-    pattern = f"%{sender_query}%"
+    """Search emails by sender name or email address (case-insensitive substring, escaped LIKE wildcards)."""
+    # Escape LIKE special wildcard characters to prevent SQL injection behavior
+    escaped_query = sender_query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped_query}%"
     result = await db.execute(
         select(Email)
         .where(
@@ -158,6 +185,42 @@ async def search_emails_by_sender(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+async def search_emails_fulltext(user_id: str, query: str, limit: int, db: AsyncSession) -> list[Email]:
+    """Fallback full-text search using PostgreSQL to_tsvector matching or ILIKE query."""
+    cleaned = re.sub(r'[^\w\s]', '', query).strip()
+    if not cleaned:
+        return []
+    words = [w for w in cleaned.split() if len(w) > 1]
+    if not words:
+        return []
+    ts_query_str = " & ".join(words)
+    try:
+        result = await db.execute(
+            select(Email)
+            .where(
+                Email.user_id == user_id,
+                text("to_tsvector('english', COALESCE(subject, '') || ' ' || COALESCE(body_text, '')) @@ to_tsquery('english', :ts_query)"),
+            )
+            .params(ts_query=ts_query_str)
+            .order_by(Email.received_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+    except Exception as e:
+        logger.warning(f"Full-text search failed: {e}. Falling back to ILIKE.")
+        pattern = f"%{cleaned[:100]}%"
+        result = await db.execute(
+            select(Email)
+            .where(
+                Email.user_id == user_id,
+                or_(Email.subject.ilike(pattern), Email.body_text.ilike(pattern))
+            )
+            .order_by(Email.received_at.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
 
 
 # ─── RAG Chat ─────────────────────────────────────────────────
@@ -200,8 +263,8 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
     )
     history = list(reversed(result.scalars().all()))
 
-    # ── Detect intent ─────────────────────────────────────────
-    intent_data = await detect_intent(user_id, message, openai)
+    # ── Detect intent with conversation history ────────────────
+    intent_data = await detect_intent(user_id, message, openai, history=[m for m in history if m.id != user_msg.id])
     intent = intent_data.get("intent", "general")
 
     # ── Handle compose/send intents ───────────────────────────
@@ -307,6 +370,23 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
             .limit(10)
         )
         relevant_emails = list(result.scalars().all())
+    elif intent == "search_date":
+        from datetime import datetime, timezone
+        query = select(Email).where(Email.user_id == user_id)
+        if intent_data.get("date_from"):
+            try:
+                df = datetime.fromisoformat(intent_data["date_from"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                query = query.where(Email.received_at >= df)
+            except ValueError:
+                pass
+        if intent_data.get("date_to"):
+            try:
+                dt = datetime.fromisoformat(intent_data["date_to"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                query = query.where(Email.received_at <= dt)
+            except ValueError:
+                pass
+        result = await db.execute(query.order_by(Email.received_at.desc()).limit(10))
+        relevant_emails = list(result.scalars().all())
     elif intent == "search_sender":
         sender_query = intent_data.get("sender_query") or ""
         if sender_query:
@@ -320,10 +400,30 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         query_embedding = await embed_text(message, user_id)
         relevant_emails = await search_similar_emails(user_id, query_embedding, 5, db)
 
-    # Build context
+    # Fallback to Fulltext search if semantic search yields less than 2 emails
+    if intent not in ("recent", "search_date") and len(relevant_emails) < 2:
+        keyword = message[:200]
+        if keyword:
+            try:
+                fallback_results = await search_emails_fulltext(user_id, keyword, 5, db)
+                existing_ids = {e.id for e in relevant_emails}
+                for fe in fallback_results:
+                    if fe.id not in existing_ids:
+                        relevant_emails.append(fe)
+                        if len(relevant_emails) >= 5:
+                            break
+            except Exception as e:
+                logger.warning(f"Full-text fallback search failed in chat: {e}")
+
+    # Build context with balanced token budget allocation
     context_parts = []
+    PER_EMAIL_TOKEN_BUDGET = MAX_CONTEXT_TOKENS // max(1, len(relevant_emails))
     for i, email in enumerate(relevant_emails, 1):
-        body_snippet = (email.body_text or "")[:MAX_EMAIL_BODY_LENGTH]
+        # Truncate content individually based on allocated budget
+        body_snippet = truncate_to_budget(
+            email.body_text or "",
+            budget=max(100, PER_EMAIL_TOKEN_BUDGET - 150)  # -150 for headers and metadata
+        )
         category = email.category or "other"
         priority = email.priority or "medium"
         sentiment = email.sentiment or "neutral"
@@ -346,7 +446,7 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
             f"</email>"
         )
     raw_context = "\n\n---\n\n".join(context_parts) if context_parts else "No relevant emails found."
-    context = truncate_to_budget(raw_context, MAX_CONTEXT_TOKENS)
+    context = raw_context  # Truncated per email, safe to use directly without further slicing
 
     user_info_str = f"The email address of the currently logged-in user (owner of this mailbox) is: {user_email}\n" if user_email else ""
 
@@ -375,8 +475,9 @@ Email Context (UNTRUSTED DATA):
 {context}"""
 
     messages = [{"role": "system", "content": system_prompt}]
-    for msg in history[:-1]:
-        messages.append({"role": msg.role, "content": msg.content})
+    for msg in history:
+        if msg.id != user_msg.id:
+            messages.append({"role": msg.role, "content": msg.content})
     messages.append({"role": "user", "content": message})
 
     completion = await openai.chat.completions.create(
@@ -641,12 +742,23 @@ async def get_session_history(user_id: str, session_id: str, db: AsyncSession) -
 
 # ─── Email AI Processing ───────────────────────────────────────
 
+def smart_truncate_email(body_text: str, max_chars: int = 3000) -> str:
+    """Take the first and last parts of a long email body to preserve context and signature/footers."""
+    if not body_text:
+        return ""
+    if len(body_text) <= max_chars:
+        return body_text
+    half = max_chars // 2
+    return f"{body_text[:half]}\n\n...[CONTENT TRUNCATED]...\n\n{body_text[-half:]}"
+
+
 async def classify_and_summarize(email_id: str, subject: str, body_text: str, db: AsyncSession):
     openai = get_openai_client()
+    truncated_body = smart_truncate_email(body_text or "", 3000)
     prompt = f"""Analyze this email and return a JSON object.
 
 Subject: {subject}
-Body: {body_text[:2000]}
+Body: {truncated_body}
 
 Return JSON with:
 {{
@@ -710,7 +822,7 @@ Return JSON with:
         except Exception as label_err:
             logger.warning(f"Failed to apply Gmail label for {email_id}: {label_err}")
 
-        text_for_embed = f"{subject}\n{body_text}"
+        text_for_embed = f"Subject: {subject}\nSummary: {formatted_summary}\nContent: {body_text}"
         try:
             embedding = await embed_text(text_for_embed)
             await store_embedding(email_id, embedding, db)
@@ -726,8 +838,7 @@ Return JSON with:
 # ─── Embeddings ────────────────────────────────────────────────
 
 async def embed_text(text: str, user_id: Optional[str] = None) -> list[float]:
-    if user_id:
-        check_rate_limit(user_id)
+    # Removed double rate limit check here as it is checked by caller (chat)
     openai = get_openai_client()
     response = await openai.embeddings.create(
         model=settings.OPENAI_EMBEDDING_MODEL,
@@ -753,24 +864,36 @@ async def search_similar_emails(
     logger.info(f"Audit: Semantic search triggered for user {user_id}")
     vector_str = f"[{','.join(str(x) for x in embedding)}]"
     try:
-        async with db.begin_nested():
+        # Removed begin_nested() since this is a pure SELECT query
+        rows = await db.execute(
+            text("""SELECT e.id FROM emails e
+                   JOIN email_embeddings ee ON e.id = ee.email_id
+                   WHERE e.user_id = :user_id
+                   AND (ee.embedding <=> :embedding::vector) < :threshold
+                   ORDER BY ee.embedding <=> :embedding::vector
+                   LIMIT :limit"""),
+            {"user_id": user_id, "embedding": vector_str, "limit": limit, "threshold": RAG_DISTANCE_THRESHOLD},
+        )
+        email_ids = [row[0] for row in rows.fetchall()]
+        if not email_ids:
+            # RAG-3: Retry with wider threshold 0.6 if no results found at 0.4
             rows = await db.execute(
                 text("""SELECT e.id FROM emails e
                        JOIN email_embeddings ee ON e.id = ee.email_id
                        WHERE e.user_id = :user_id
-                       AND (ee.embedding <=> :embedding::vector) < :threshold
+                       AND (ee.embedding <=> :embedding::vector) < 0.6
                        ORDER BY ee.embedding <=> :embedding::vector
                        LIMIT :limit"""),
-                {"user_id": user_id, "embedding": vector_str, "limit": limit, "threshold": RAG_DISTANCE_THRESHOLD},
+                {"user_id": user_id, "embedding": vector_str, "limit": limit},
             )
             email_ids = [row[0] for row in rows.fetchall()]
             if not email_ids:
                 return []
-            result = await db.execute(
-                select(Email).where(Email.id.in_(email_ids), Email.user_id == user_id)
-            )
-            emails_by_id = {e.id: e for e in result.scalars().all()}
-            return [emails_by_id[eid] for eid in email_ids if eid in emails_by_id]
+        result = await db.execute(
+            select(Email).where(Email.id.in_(email_ids), Email.user_id == user_id)
+        )
+        emails_by_id = {e.id: e for e in result.scalars().all()}
+        return [emails_by_id[eid] for eid in email_ids if eid in emails_by_id]
     except Exception as e:
         logger.error(f"Semantic search failed: {e}")
         return []

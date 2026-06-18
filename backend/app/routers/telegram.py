@@ -119,6 +119,16 @@ async def test(
 @router.post("/webhook")
 async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """Receive updates from Telegram Bot webhook"""
+    # Verify Telegram Bot secret token if configured
+    telegram_secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+    if settings.TELEGRAM_SECRET_TOKEN:
+        from fastapi import HTTPException
+        if telegram_secret != settings.TELEGRAM_SECRET_TOKEN:
+            raise HTTPException(status_code=401, detail="Invalid Telegram secret token")
+    elif settings.ENVIRONMENT != "development":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Telegram secret token not configured")
+
     try:
         body = await request.json()
         message = body.get("message", {})

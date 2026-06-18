@@ -17,11 +17,7 @@ def get_fernet() -> Fernet:
         
     key = settings.ENCRYPTION_KEY
     if not key:
-        # Fallback: derive a key from GOOGLE_CLIENT_SECRET or FIREBASE_PROJECT_ID
-        stable_secret = settings.GOOGLE_CLIENT_SECRET or settings.FIREBASE_PROJECT_ID or "default_stable_secret"
-        key_bytes = hashlib.sha256(stable_secret.encode()).digest()
-        key = base64.urlsafe_b64encode(key_bytes).decode()
-        logger.warning("ENCRYPTION_KEY not set. Using derived key from client secrets. This is not recommended for production.")
+        raise RuntimeError("ENCRYPTION_KEY must be set in environment variables. Generate a new key with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"")
     
     try:
         _fernet = Fernet(key.encode())

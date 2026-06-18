@@ -55,19 +55,19 @@ function StatCard({ icon, label, value, sub, color, bgClass }: {
   bgClass: string;
 }) {
   return (
-    <div className="glass-hover p-5" style={{ background: bgClass }}>
+    <div className="glass-hover p-5" style={{ background: bgClass, borderColor: '#2D2A26' }}>
       <div className="flex items-start justify-between mb-3">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center border-2"
-          style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
+          style={{ background: '#FFFFFF', borderColor: '#2D2A26' }}
         >
           <span style={{ color }}>{icon}</span>
         </div>
-        <ArrowUpRight className="w-4 h-4" style={{ color: 'var(--text-primary)' }} />
+        <ArrowUpRight className="w-4 h-4" style={{ color: '#2D2A26' }} />
       </div>
-      <div className="text-3xl font-extrabold mb-1" style={{ color: 'var(--text-primary)' }}>{value}</div>
-      <div className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>{label}</div>
-      {sub && <div className="text-[10px] font-semibold mt-1" style={{ color: 'var(--text-secondary)' }}>{sub}</div>}
+      <div className="text-3xl font-extrabold mb-1" style={{ color: '#2D2A26' }}>{value}</div>
+      <div className="text-xs font-bold" style={{ color: '#4D4540' }}>{label}</div>
+      {sub && <div className="text-[10px] font-bold mt-1" style={{ color: '#5C534C' }}>{sub}</div>}
     </div>
   );
 }

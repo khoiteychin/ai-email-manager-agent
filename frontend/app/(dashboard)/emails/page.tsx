@@ -19,7 +19,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
 
-const CATEGORIES = ['All', 'Work', 'Personal', 'Social', 'Invoice', 'Promotion', 'Security'];
+const CATEGORIES = ['All', 'Work', 'Personal', 'Social', 'Invoice', 'Promotion'];
 
 interface Email {
   id: string;

@@ -229,12 +229,14 @@ export default function DashboardPage() {
                 Categories
               </h2>
               <Card className="p-5 space-y-4">
-                {stats?.categoryBreakdown?.length === 0 ? (
+                {!stats?.categoryBreakdown || stats.categoryBreakdown.filter(item => item.category.toLowerCase() !== 'security').length === 0 ? (
                   <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>
                     No data yet
                   </p>
                 ) : (
-                  stats?.categoryBreakdown?.map((item) => {
+                  stats.categoryBreakdown
+                    .filter(item => item.category.toLowerCase() !== 'security')
+                    .map((item) => {
                     const total = stats.totalEmails || 1;
                     const pct = Math.round((item.count / total) * 100);
                     const catLower = item.category.toLowerCase();

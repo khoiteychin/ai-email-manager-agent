@@ -14,6 +14,7 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
+import { IllustrationEmailLogo } from '@/components/ui/illustrations';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -46,38 +47,35 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="flex flex-col h-screen w-64 border-r"
+      className="flex flex-col h-screen w-64 border-r-2"
       style={{
         background: 'var(--bg-sidebar)',
         borderColor: 'var(--border)',
       }}
     >
       {/* Logo */}
-      <div className="p-6 border-b" style={{ borderColor: 'var(--border)' }}>
+      <div className="p-6 border-b-2" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-3">
-          <Mail className="w-5 h-5" style={{ color: 'var(--accent)' }} />
+          <IllustrationEmailLogo width={36} height={36} />
           <div>
-            <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+            <div className="text-base font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
               AI Email
             </div>
-            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Manager</div>
+            <div className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Manager Bot 🧸</div>
           </div>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-2.5">
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
           return (
             <Link key={item.href} href={item.href}>
-              <div
-                className={`sidebar-item ${isActive ? 'active' : ''}`}
-                style={isActive ? { borderLeft: '2.5px solid var(--accent)', borderRadius: '0 8px 8px 0' } : undefined}
-              >
-                <item.icon className="w-4 h-4 flex-shrink-0" style={{ color: isActive ? 'var(--icon-active)' : 'var(--icon-default)' }} />
+              <div className={`sidebar-item ${isActive ? 'active' : ''}`}>
+                <item.icon className="w-4 h-4 flex-shrink-0" style={{ color: 'var(--text-primary)' }} />
                 <span className="flex-1">{item.label}</span>
-                {isActive && <ChevronRight className="w-3 h-3 opacity-60" />}
+                {isActive && <ChevronRight className="w-3.5 h-3.5" style={{ strokeWidth: 3 }} />}
               </div>
             </Link>
           );
@@ -85,20 +83,20 @@ export default function Sidebar() {
       </nav>
 
       {/* User section */}
-      <div className="p-4 border-t space-y-4" style={{ borderColor: 'var(--border)' }}>
+      <div className="p-4 border-t-2 space-y-4" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center justify-between px-2">
           <div className="flex items-center gap-3 min-w-0">
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-              style={{ background: 'var(--theme-gradient)' }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white flex-shrink-0 border-2"
+              style={{ background: 'var(--theme-gradient)', borderColor: 'var(--border)' }}
             >
               {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium truncate" style={{ color: 'var(--text-sidebar-user)' }}>
+              <div className="text-xs font-bold truncate" style={{ color: 'var(--text-sidebar-user)' }}>
                 {user?.name || 'User'}
               </div>
-              <div className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
+              <div className="text-[10px] font-semibold truncate" style={{ color: 'var(--text-secondary)' }}>
                 {user?.email}
               </div>
             </div>
@@ -107,11 +105,12 @@ export default function Sidebar() {
           {/* Theme Toggler inline */}
           <button
             onClick={toggleTheme}
-            className="flex items-center p-1.5 rounded-lg border transition-all duration-150 cursor-pointer flex-shrink-0 ml-2"
+            className="flex items-center p-1.5 rounded-xl border-2 transition-all duration-150 cursor-pointer flex-shrink-0 ml-2"
             style={{
               borderColor: 'var(--border)',
               background: 'var(--bg-secondary)',
-              color: 'var(--text-secondary)'
+              color: 'var(--text-secondary)',
+              boxShadow: '2px 2px 0px var(--border)'
             }}
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
@@ -121,8 +120,8 @@ export default function Sidebar() {
 
         <button
           onClick={logout}
-          className="sidebar-item w-full text-red-400 hover:text-red-300"
-          style={{ color: '#f87171' }}
+          className="sidebar-item w-full hover:bg-red-100 dark:hover:bg-red-950/30"
+          style={{ color: '#ef4444' }}
         >
           <LogOut className="w-4 h-4" />
           <span>Logout</span>

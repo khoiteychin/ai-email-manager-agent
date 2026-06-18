@@ -162,16 +162,17 @@ export default function EmailsPage() {
         </div>
 
         {/* Sync Limit Selector and Refresh Button */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <select
             value={syncLimit}
             onChange={(e) => setSyncLimit(Number(e.target.value))}
             disabled={syncing}
-            className="px-3 py-2 rounded-lg text-sm outline-none cursor-pointer transition-all duration-150"
+            className="px-3 py-2 rounded-xl text-sm font-bold outline-none cursor-pointer border-2"
             style={{
               background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
+              borderColor: 'var(--border)',
               color: 'var(--text-primary)',
+              boxShadow: '2px 2px 0px var(--border)',
             }}
             title="Emails to sync"
           >
@@ -185,11 +186,12 @@ export default function EmailsPage() {
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all duration-150 disabled:opacity-50"
             style={{
               background: 'var(--accent-light)',
-              border: '1px solid var(--border)',
-              color: 'var(--accent)',
+              borderColor: 'var(--border)',
+              color: 'var(--text-primary)',
+              boxShadow: '2px 2px 0px var(--border)',
             }}
           >
             <motion.div
@@ -214,26 +216,27 @@ export default function EmailsPage() {
           >
             <button
               onClick={loadNewEmails}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all duration-150 hover:brightness-110"
+              className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold border-2 transition-all duration-150 hover:brightness-110"
               style={{
                 background: 'var(--accent)',
-                border: '1px solid var(--border)',
-                color: 'white',
+                borderColor: 'var(--border)',
+                color: 'var(--text-primary)',
+                boxShadow: '3px 3px 0px var(--border)',
               }}
             >
               <div className="flex items-center gap-2">
-                <Bell className="w-4 h-4 text-white animate-pulse" />
+                <Bell className="w-4 h-4 animate-bounce" />
                 <span>
                   {newEmailBanner.count} new email{newEmailBanner.count > 1 ? 's' : ''} arrived
                   {newEmailBanner.emails.length > 0 && (
-                    <span style={{ color: 'rgba(255,255,255,0.75)' }}>
+                    <span className="opacity-80">
                       {' '}– {newEmailBanner.emails[0].subject}
                       {newEmailBanner.count > 1 && ` +${newEmailBanner.count - 1} more`}
                     </span>
                   )}
                 </span>
               </div>
-              <span className="text-xs underline text-white">Load now →</span>
+              <span className="text-xs underline">Load now →</span>
             </button>
           </motion.div>
         )}
@@ -242,7 +245,7 @@ export default function EmailsPage() {
       {/* Filters */}
       <div className="glass p-4 space-y-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
           <input
             type="text"
             placeholder="Search emails..."
@@ -266,19 +269,22 @@ export default function EmailsPage() {
               <button
                 key={cat}
                 onClick={() => { setCategory(cat); setPage(1); }}
-                className="px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-150 flex items-center gap-1.5 border-2"
                 style={{
-                  background: category === cat ? 'var(--accent)' : 'transparent',
-                  border: `1px solid ${category === cat ? 'var(--accent)' : 'var(--border)'}`,
-                  color: category === cat ? 'white' : 'var(--text-secondary)',
+                  background: category === cat ? 'var(--accent)' : 'var(--bg-card)',
+                  borderColor: 'var(--border)',
+                  color: 'var(--text-primary)',
+                  boxShadow: category === cat ? '1px 1px 0px var(--border)' : '2px 2px 0px var(--border)',
+                  transform: category === cat ? 'translate(1px, 1px)' : 'none',
                 }}
               >
                 <span>{cat}</span>
                 <span
-                  className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
+                  className="px-1.5 py-0.5 rounded-full text-[10px] font-bold border"
                   style={{
-                    background: category === cat ? 'rgba(255,255,255,0.2)' : 'var(--bg-elevated)',
-                    color: category === cat ? 'white' : 'var(--text-muted)',
+                    background: category === cat ? 'rgba(255,255,255,0.2)' : 'var(--bg-secondary)',
+                    borderColor: 'var(--border)',
+                    color: 'var(--text-primary)',
                   }}
                 >
                   {getCategoryCount(cat)}
@@ -301,41 +307,41 @@ export default function EmailsPage() {
           <EmptyState variant="inbox" title="Inbox is empty" description="Click Refresh to sync Gmail" />
         )
       ) : (
-        <div className="glass overflow-hidden divide-y divide-[var(--border)]">
+        <div className="space-y-3">
           {emails.map((email) => (
             <div
               key={email.id}
-              className="p-4 hover:bg-[var(--bg-elevated)] transition-colors"
+              className="glass-hover p-4"
             >
               <Link href={`/emails/${email.id}`}>
                 <div className="flex items-start gap-3 group">
                   <div className="mt-1.5 flex-shrink-0 w-2.5 h-2.5 flex items-center justify-center">
                     {!email.isRead && (
-                      <div className="w-2 h-2 rounded-full bg-[var(--accent)]" />
+                      <div className="w-2.5 h-2.5 rounded-full border border-black bg-[var(--danger)] animate-pulse" />
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span
-                        className={`text-sm truncate flex-1 ${email.isRead ? 'text-[var(--text-secondary)] font-normal' : 'text-[var(--text-primary)] font-semibold'}`}
+                        className={`text-sm truncate flex-1 ${email.isRead ? 'text-[var(--text-secondary)] font-medium' : 'text-[var(--text-primary)] font-bold'}`}
                       >
                         {email.subject || '(No subject)'}
                       </span>
-                      <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+                      <span className="text-xs flex-shrink-0 font-bold" style={{ color: 'var(--text-muted)' }}>
                         {email.receivedAt
                           ? formatDistanceToNow(new Date(email.receivedAt), { addSuffix: true })
                           : '—'}
                       </span>
                     </div>
 
-                    <div className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+                    <div className="text-xs mb-2 font-semibold" style={{ color: 'var(--text-secondary)' }}>
                       From: {email.sender || email.fromAddress || 'Unknown'}
                     </div>
 
                     {email.summary ? (
-                      <p className="text-xs line-clamp-2 mb-2" style={{ color: 'var(--text-secondary)' }}>
-                        📝 {email.summary}
+                      <p className="text-xs line-clamp-2 mb-2 font-medium" style={{ color: 'var(--text-secondary)' }}>
+                        🧸 AI Summary: {email.summary}
                       </p>
                     ) : email.bodyPreview ? (
                       <p className="text-xs line-clamp-2 mb-2" style={{ color: 'var(--text-muted)' }}>
@@ -351,7 +357,8 @@ export default function EmailsPage() {
 
                   <button
                     onClick={(e) => toggleStar(e, email.id)}
-                    className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-yellow-400/10"
+                    className="flex-shrink-0 opacity-100 p-1.5 rounded-xl border-2 hover:bg-yellow-100 transition-colors"
+                    style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', boxShadow: '2px 2px 0px var(--border)' }}
                   >
                     {email.isStarred ? (
                       <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />

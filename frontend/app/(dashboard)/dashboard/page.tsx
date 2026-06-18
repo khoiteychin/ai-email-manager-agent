@@ -46,27 +46,28 @@ const CATEGORY_COLORS: Record<string, string> = {
   security: '#06b6d4',
 };
 
-function StatCard({ icon, label, value, sub, color }: {
+function StatCard({ icon, label, value, sub, color, bgClass }: {
   icon: React.ReactNode;
   label: string;
   value: number | string;
   sub?: string;
   color: string;
+  bgClass: string;
 }) {
   return (
-    <div className="glass p-5">
+    <div className="glass-hover p-5" style={{ background: bgClass }}>
       <div className="flex items-start justify-between mb-3">
         <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center"
-          style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+          className="w-10 h-10 rounded-xl flex items-center justify-center border-2"
+          style={{ background: 'var(--bg-card)', borderColor: 'var(--border)' }}
         >
           <span style={{ color }}>{icon}</span>
         </div>
-        <ArrowUpRight className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
+        <ArrowUpRight className="w-4 h-4" style={{ color: 'var(--text-primary)' }} />
       </div>
-      <div className="text-2xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{value}</div>
-      <div className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{label}</div>
-      {sub && <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{sub}</div>}
+      <div className="text-3xl font-extrabold mb-1" style={{ color: 'var(--text-primary)' }}>{value}</div>
+      <div className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>{label}</div>
+      {sub && <div className="text-[10px] font-semibold mt-1" style={{ color: 'var(--text-secondary)' }}>{sub}</div>}
     </div>
   );
 }
@@ -124,28 +125,32 @@ export default function DashboardPage() {
               icon={<Mail className="w-5 h-5" />}
               label="Total Emails"
               value={stats?.totalEmails ?? 0}
-              color="#C2500A"
+              color="#B45309"
+              bgClass="#FFEDD5"
             />
             <StatCard
               icon={<Inbox className="w-5 h-5" />}
               label="Unread"
               value={stats?.unreadCount ?? 0}
               sub="Need your attention"
-              color="#3B82F6"
+              color="#1D4ED8"
+              bgClass="#DBEAFE"
             />
             <StatCard
               icon={<TrendingUp className="w-5 h-5" />}
               label="Categories"
               value={stats?.categoryBreakdown?.length ?? 0}
               sub="Active categories"
-              color="#10B981"
+              color="#047857"
+              bgClass="#D1FAE5"
             />
             <StatCard
               icon={<Star className="w-5 h-5" />}
               label="Starred"
               value={stats?.starredCount ?? 0}
               sub="Quick access"
-              color="#F59E0B"
+              color="#B45309"
+              bgClass="#FEF3C7"
             />
           </div>
 

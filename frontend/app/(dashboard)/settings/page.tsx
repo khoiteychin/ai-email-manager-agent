@@ -430,6 +430,35 @@ function SettingsContent() {
         </Card>
       </motion.div>
 
+      {/* Security info */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+        <Card className="p-6">
+          <h2 className="text-base font-semibold flex items-center gap-2 mb-4" style={{ color: 'var(--text-primary)' }}>
+            <Shield className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+            Security
+          </h2>
+          <div className="space-y-3">
+            {[
+              { label: 'Authentication', value: 'Firebase JWT (signed & verified)', ok: true },
+              { label: 'Token storage', value: 'Encrypted at rest (AES-256)', ok: true },
+              { label: 'XSS Protection', value: 'CSP + X-XSS-Protection headers', ok: true },
+              { label: 'HTTPS', value: 'HSTS enforced (Let\'s Encrypt SSL)', ok: true },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center justify-between text-sm">
+                <span style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
+                <div className="flex items-center gap-2">
+                  <span style={{ color: 'var(--text-muted)' }}>{item.value}</span>
+                  {item.ok ? (
+                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-red-400" />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </motion.div>
     </div>
   );
 }

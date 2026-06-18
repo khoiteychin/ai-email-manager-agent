@@ -57,16 +57,24 @@ async def sync_from_gmail(user_id: str, db: AsyncSession) -> int:
         # No historyId yet or no new messages via History API – do full sync
         emails_data = await gmail_service.fetch_recent_emails(user_id, db, 50)
 
-    new_count = 0
-    for data in emails_data:
+    gmail_ids = [d["gmail_id"] for d in emails_data if d.get("gmail_id")]
+    existing_gmail_ids = set()
+    if gmail_ids:
         result = await db.execute(
-            select(Email).where(Email.user_id == user_id, Email.gmail_id == data["gmail_id"])
+            select(Email.gmail_id).where(Email.user_id == user_id, Email.gmail_id.in_(gmail_ids))
         )
-        exists = result.scalar_one_or_none()
-        if not exists:
-            email = Email(user_id=user_id, **data)
-            db.add(email)
-            new_count += 1
+        existing_gmail_ids = set(result.scalars().all())
+
+    new_count = 0
+    added_gids = set()
+    for data in emails_data:
+        gid = data.get("gmail_id")
+        if not gid or gid in existing_gmail_ids or gid in added_gids:
+            continue
+        email = Email(user_id=user_id, **data)
+        db.add(email)
+        added_gids.add(gid)
+        new_count += 1
 
     if new_count > 0:
         await db.commit()

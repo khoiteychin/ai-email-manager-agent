@@ -100,15 +100,24 @@ async def _sync_user_emails_background(user_id: str):
     async with AsyncSessionLocal() as db:
         try:
             emails_data = await gmail_service.fetch_recent_emails(user_id, db, 10)
-            new_ids = []
-            for data in emails_data:
+            gmail_ids = [d["gmail_id"] for d in emails_data if d.get("gmail_id")]
+            existing_gmail_ids = set()
+            if gmail_ids:
                 result = await db.execute(
-                    select(Email).where(Email.user_id == user_id, Email.gmail_id == data["gmail_id"])
+                    select(Email.gmail_id).where(Email.user_id == user_id, Email.gmail_id.in_(gmail_ids))
                 )
-                if not result.scalar_one_or_none():
-                    email = Email(user_id=user_id, **data)
-                    db.add(email)
-                    new_ids.append((email.id, data.get("subject", ""), data.get("body_text", ""), data.get("sender", "Unknown")))
+                existing_gmail_ids = set(result.scalars().all())
+
+            new_ids = []
+            added_gids = set()
+            for data in emails_data:
+                gid = data.get("gmail_id")
+                if not gid or gid in existing_gmail_ids or gid in added_gids:
+                    continue
+                email = Email(user_id=user_id, **data)
+                db.add(email)
+                added_gids.add(gid)
+                new_ids.append((email.id, data.get("subject", ""), data.get("body_text", ""), data.get("sender", "Unknown")))
 
             if new_ids:
                 await db.commit()

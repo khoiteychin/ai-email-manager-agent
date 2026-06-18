@@ -81,19 +81,26 @@ async def lifespan(app: FastAPI):
                                     continue  # No new emails via incremental
 
                             new_count = 0
-                            for data in emails_data:
-                                # Skip if already exists
-                                existing = await db.execute(
-                                    select(Email).where(
+                            gmail_ids = [d["gmail_id"] for d in emails_data if d.get("gmail_id")]
+                            existing_gmail_ids = set()
+                            if gmail_ids:
+                                result = await db.execute(
+                                    select(Email.gmail_id).where(
                                         Email.user_id == user_id,
-                                        Email.gmail_id == data["gmail_id"]
+                                        Email.gmail_id.in_(gmail_ids)
                                     )
                                 )
-                                if existing.scalar_one_or_none():
+                                existing_gmail_ids = set(result.scalars().all())
+
+                            added_gids = set()
+                            for data in emails_data:
+                                gid = data.get("gmail_id")
+                                if not gid or gid in existing_gmail_ids or gid in added_gids:
                                     continue
 
                                 email = Email(user_id=user_id, **data)
                                 db.add(email)
+                                added_gids.add(gid)
                                 await db.flush()
                                 new_count += 1
 

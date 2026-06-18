@@ -3,92 +3,62 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── CSS Custom Properties ─────────────────────────────────── */
+/* ─── CSS Custom Properties (Light theme by default) ────────── */
 :root {
-  --bg-primary: #070c18;
-  --bg-secondary: #0f172a;
-  --bg-card: #1e293b;
-  --bg-elevated: #273348;
-  --border: rgba(99, 102, 241, 0.15);
-  --border-hover: rgba(99, 102, 241, 0.5);
-  --text-primary: #e2e8f0;
-  --text-secondary: rgba(226, 232, 240, 0.70);
-  --text-muted: rgba(226, 232, 240, 0.40);
-  --accent: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.12);
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
+  --bg-primary:    #FAF8F5;
+  --bg-secondary:  #FAF8F5;
+  --bg-card:       #FFFFFF;
+  --bg-elevated:   #FFFAF6;
+  --border:        #EDE8DF;
+  --border-hover:  #FCDCC6;
+  --text-primary:  #1C1917;
+  --text-secondary:#78716C;
+  --text-muted:    #B5AFA6;
+  --accent:        #C2500A;
+  --accent-light:  #FFF4EC;
+  --accent-border: #FCDCC6;
+  --success:       #065F46;
+  --warning:       #B45309;
+  --danger:        #DC2626;
+  --bg-sidebar:    #FFFFFF;
+  --bg-topbar:     #FFFFFF;
 
-  --bg-sidebar: #0f172a;
-  --text-sidebar-logo: #e2e8f0;
-  --text-sidebar-user: #e2e8f0;
-  --theme-gradient: linear-gradient(135deg, #6366f1, #4f46e5);
-  --bg-glass: rgba(15, 23, 42, 0.75);
-
-  /* Icon colors */
-  --icon-default: rgba(148, 163, 184, 1);    /* slate-400 — icon mặc định */
-  --icon-active: #6366f1;                    /* indigo — icon đang active */
-  --icon-muted: rgba(100, 116, 139, 1);      /* slate-500 — icon phụ / placeholder */
-  --icon-accent: #6366f1;                    /* dùng cho stat card icons */
-}
-
-html.light {
-  --bg-primary: #f8f7f4;
-  --bg-secondary: #f1f0ec;
-  --bg-card: #ffffff;
-  --bg-elevated: #e8e6e0;
-  --border: rgba(30, 41, 59, 0.10);
-  --border-hover: rgba(99, 102, 241, 0.40);
-  --text-primary: #1e293b;
-  --text-secondary: rgba(30, 41, 59, 0.65);
-  --text-muted: rgba(30, 41, 59, 0.40);
-  --accent: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.08);
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-
-  --bg-sidebar: #f1f0ec;
-  --text-sidebar-logo: #1e293b;
-  --text-sidebar-user: #1e293b;
-  --theme-gradient: linear-gradient(135deg, #6366f1, #4f46e5);
-  --bg-glass: rgba(255, 255, 255, 0.72);
+  --text-sidebar-logo: #1C1917;
+  --text-sidebar-user: #1C1917;
+  --theme-gradient: linear-gradient(135deg, #FB923C, #F59E0B);
 
   /* Icon colors */
-  --icon-default: rgba(71, 85, 105, 1);      /* slate-600 — icon mặc định */
-  --icon-active: #4f46e5;                    /* indigo-600 — icon đang active */
-  --icon-muted: rgba(148, 163, 184, 1);      /* slate-400 — icon phụ / placeholder */
-  --icon-accent: #4f46e5;
+  --icon-default: #78716C;
+  --icon-active: #C2500A;
+  --icon-muted: #B5AFA6;
+  --icon-accent: #C2500A;
 }
 
+/* ─── Dark Mode Override ────────────────────────────────────── */
 html.dark {
-  --bg-primary: #070c18;
-  --bg-secondary: #0f172a;
-  --bg-card: #1e293b;
-  --bg-elevated: #273348;
-  --border: rgba(99, 102, 241, 0.15);
-  --border-hover: rgba(99, 102, 241, 0.5);
-  --text-primary: #e2e8f0;
-  --text-secondary: rgba(226, 232, 240, 0.70);
-  --text-muted: rgba(226, 232, 240, 0.40);
-  --accent: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.12);
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
+  --bg-primary:    #141412;
+  --bg-secondary:  #141412;
+  --bg-card:       #1C1C1A;
+  --bg-elevated:   #242422;
+  --border:        rgba(255,255,255,0.08);
+  --border-hover:  rgba(255,255,255,0.15);
+  --text-primary:  #F0EDE8;
+  --text-secondary:#9C9890;
+  --text-muted:    #6B6760;
+  --accent:        #F59E0B;
+  --accent-light:  rgba(245,158,11,0.12);
+  --bg-sidebar:    #1C1C1A;
+  --bg-topbar:     #1C1C1A;
 
-  --bg-sidebar: #0f172a;
-  --text-sidebar-logo: #e2e8f0;
-  --text-sidebar-user: #e2e8f0;
-  --theme-gradient: linear-gradient(135deg, #6366f1, #4f46e5);
-  --bg-glass: rgba(15, 23, 42, 0.75);
+  --text-sidebar-logo: #F0EDE8;
+  --text-sidebar-user: #F0EDE8;
+  --theme-gradient: linear-gradient(135deg, #FB923C, #F59E0B);
 
   /* Icon colors */
-  --icon-default: rgba(148, 163, 184, 1);
-  --icon-active: #6366f1;
-  --icon-muted: rgba(100, 116, 139, 1);
-  --icon-accent: #6366f1;
+  --icon-default: #9C9890;
+  --icon-active: #F59E0B;
+  --icon-muted: #6B6760;
+  --icon-accent: #F59E0B;
 }
 
 /* ─── Base Styles ────────────────────────────────────────────── */
@@ -111,15 +81,15 @@ body {
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
 }
 ::-webkit-scrollbar-thumb {
   background: var(--border-hover);
-  border-radius: 3px;
+  border-radius: 2.5px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent);
@@ -127,61 +97,54 @@ body {
 
 /* ─── Component Utilities ────────────────────────────────────── */
 @layer components {
-  /* Glass card */
+  /* Flat card style */
   .glass {
-    background: var(--bg-glass);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 16px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   }
 
   .glass-hover {
-    @apply glass transition-all duration-200;
+    @apply glass transition-all duration-150;
   }
   .glass-hover:hover {
     border-color: var(--border-hover);
-    box-shadow: 0 0 20px var(--accent-glow);
   }
 
   /* Gradient text */
   .gradient-text {
-    background: var(--theme-gradient);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--text-primary);
+    font-weight: 600;
   }
 
-  /* Glow button */
+  /* Flat button */
   .btn-primary {
-    @apply relative inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm transition-all duration-200;
-    background: var(--theme-gradient);
+    @apply relative inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium text-sm transition-all duration-150;
+    background: var(--accent);
     color: white;
-    box-shadow: 0 4px 15px var(--accent-glow);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   }
   .btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px var(--accent-glow);
-  }
-  .btn-primary:active {
-    transform: translateY(0);
+    background: #B45309;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium text-sm transition-all duration-200;
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-150;
     color: var(--text-secondary);
     border: 1px solid var(--border);
+    background: var(--bg-card);
   }
   .btn-ghost:hover {
     border-color: var(--border-hover);
     color: var(--text-primary);
-    background: var(--accent-glow);
+    background: var(--bg-elevated);
   }
 
   /* Input */
   .input-field {
-    @apply w-full px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200;
-    background: var(--bg-secondary);
+    @apply w-full px-4 py-2.5 rounded-lg text-sm outline-none transition-all duration-150;
+    background: var(--bg-card);
     border: 1px solid var(--border);
     color: var(--text-primary);
   }
@@ -190,69 +153,69 @@ body {
   }
   .input-field:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-glow);
+    box-shadow: 0 0 0 2px var(--accent-light);
   }
 
   /* Badge */
   .badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium;
+    border-radius: 6px;
   }
 
   /* Category badges */
   .badge-work {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.3);
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 0.5px solid #bfdbfe;
   }
   .badge-personal {
-    background: rgba(16, 185, 129, 0.15);
-    color: #34d399;
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: #f0fdf4;
+    color: #15803d;
+    border: 0.5px solid #bbf7d0;
   }
   .badge-ads {
-    background: rgba(245, 158, 11, 0.15);
-    color: #fbbf24;
-    border: 1px solid rgba(245, 158, 11, 0.3);
+    background: #fff7ed;
+    color: #c2410c;
+    border: 0.5px solid #fed7aa;
   }
   .badge-invoice {
-    background: rgba(168, 85, 247, 0.15);
-    color: #c084fc;
-    border: 1px solid rgba(168, 85, 247, 0.3);
+    background: #faf5ff;
+    color: #7e22ce;
+    border: 0.5px solid #e9d5ff;
   }
   .badge-social {
-    background: rgba(236, 72, 153, 0.15);
-    color: #f472b6;
-    border: 1px solid rgba(236, 72, 153, 0.3);
+    background: #fdf4ff;
+    color: #a21caf;
+    border: 0.5px solid #f0abfc;
   }
   .badge-promotion {
-    background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
-    border: 1px solid rgba(239, 68, 68, 0.3);
+    background: #fff7ed;
+    color: #c2410c;
+    border: 0.5px solid #fed7aa;
   }
   .badge-security {
-    background: rgba(6, 182, 212, 0.15);
-    color: #22d3ee;
-    border: 1px solid rgba(6, 182, 212, 0.3);
+    background: #ecfdf5;
+    color: #065f46;
+    border: 0.5px solid #a7f3d0;
   }
 
   /* Priority */
-  .priority-high { color: #ef4444; }
-  .priority-medium { color: #f59e0b; }
-  .priority-low { color: #10b981; }
+  .priority-high { color: var(--danger); }
+  .priority-medium { color: var(--warning); }
+  .priority-low { color: var(--success); }
 
   /* Sidebar item */
   .sidebar-item {
-    @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer;
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer;
     color: var(--text-secondary);
   }
   .sidebar-item:hover {
-    background: var(--accent-glow);
-    color: var(--accent);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
   }
   .sidebar-item.active {
-    background: var(--accent-glow);
+    background: var(--accent-light);
     color: var(--accent);
-    border: 1px solid var(--accent);
   }
 
   /* Typing dots animation */
@@ -271,11 +234,7 @@ body {
   }
 }
 
-/* ─── Mesh gradient bg for auth pages ───────────────────────── */
+/* ─── Solid bg for auth pages ───────────────────────── */
 .auth-bg {
-  background-color: var(--bg-primary);
-  background-image:
-    radial-gradient(ellipse at 20% 50%, var(--accent-glow) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, var(--accent-glow) 0%, transparent 50%),
-    radial-gradient(ellipse at 60% 80%, var(--accent-glow) 0%, transparent 50%);
+  background-color: var(--bg-secondary);
 }

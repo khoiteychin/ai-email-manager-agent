@@ -3,16 +3,13 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth-context';
-import { IllustrationEmailLogo } from '@/components/ui/illustrations';
 import {
   LayoutDashboard,
   Mail,
   MessageSquare,
   Settings,
   LogOut,
-  Zap,
   ChevronRight,
   Sun,
   Moon,
@@ -25,36 +22,24 @@ const navItems = [
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-const containerVariants = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.06 } }
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, x: -8 },
-  show: { opacity: 1, x: 0, transition: { type: 'spring', stiffness: 300 } }
-};
-
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
-    const isLight = document.documentElement.classList.contains('light');
-    setTheme(isLight ? 'light' : 'dark');
+    const isDark = document.documentElement.classList.contains('dark');
+    setTheme(isDark ? 'dark' : 'light');
   }, []);
 
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
     if (nextTheme === 'light') {
-      document.documentElement.classList.add('light');
       document.documentElement.classList.remove('dark');
       localStorage.theme = 'light';
     } else {
       document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
       localStorage.theme = 'dark';
     }
   };
@@ -65,13 +50,12 @@ export default function Sidebar() {
       style={{
         background: 'var(--bg-sidebar)',
         borderColor: 'var(--border)',
-        backdropFilter: 'blur(20px)',
       }}
     >
       {/* Logo */}
       <div className="p-6 border-b" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-3">
-          <IllustrationEmailLogo />
+          <Mail className="w-5 h-5" style={{ color: 'var(--accent)' }} />
           <div>
             <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               AI Email
@@ -82,96 +66,59 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <motion.nav
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-        className="flex-1 p-4 space-y-1"
-      >
+      <nav className="flex-1 p-4 space-y-1">
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname?.startsWith(item.href + '/');
           return (
             <Link key={item.href} href={item.href}>
-              <motion.div
-                variants={itemVariants}
-                className="relative"
+              <div
+                className={`sidebar-item ${isActive ? 'active' : ''}`}
+                style={isActive ? { borderLeft: '2.5px solid var(--accent)', borderRadius: '0 8px 8px 0' } : undefined}
               >
-                <motion.div
-                  whileHover={{ x: 2 }}
-                  className={`sidebar-item ${isActive ? 'active' : ''}`}
-                  style={{ position: 'relative', zIndex: 1 }}
-                >
-                  <item.icon className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1">{item.label}</span>
-                  {isActive && <ChevronRight className="w-3 h-3 opacity-60" />}
-                </motion.div>
-                {isActive && (
-                  <motion.div
-                    layoutId="activeNavIndicator"
-                    className="absolute inset-0 rounded-xl"
-                    style={{ background: 'var(--accent-light)', zIndex: 0 }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                  />
-                )}
-              </motion.div>
+                <item.icon className="w-4 h-4 flex-shrink-0" style={{ color: isActive ? 'var(--icon-active)' : 'var(--icon-default)' }} />
+                <span className="flex-1">{item.label}</span>
+                {isActive && <ChevronRight className="w-3 h-3 opacity-60" />}
+              </div>
             </Link>
           );
         })}
-      </motion.nav>
+      </nav>
 
       {/* User section */}
-      <div className="p-4 border-t" style={{ borderColor: 'var(--border)' }}>
-        {/* Theme Toggler */}
-        <div className="flex items-center justify-between mb-4 px-2">
-          <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-            Theme
-          </span>
+      <div className="p-4 border-t space-y-4" style={{ borderColor: 'var(--border)' }}>
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+              style={{ background: 'var(--theme-gradient)' }}
+            >
+              {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium truncate" style={{ color: 'var(--text-sidebar-user)' }}>
+                {user?.name || 'User'}
+              </div>
+              <div className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
+                {user?.email}
+              </div>
+            </div>
+          </div>
+
+          {/* Theme Toggler inline */}
           <button
             onClick={toggleTheme}
-            className="flex items-center gap-1 p-1 rounded-lg border transition-all duration-200 cursor-pointer"
+            className="flex items-center p-1.5 rounded-lg border transition-all duration-150 cursor-pointer flex-shrink-0 ml-2"
             style={{
               borderColor: 'var(--border)',
               background: 'var(--bg-secondary)',
+              color: 'var(--text-secondary)'
             }}
             title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
-            <div
-              className="p-1 rounded-md transition-all duration-200"
-              style={theme === 'light'
-                ? { background: 'var(--accent)', color: 'white' }
-                : { color: 'var(--icon-muted)' }
-              }
-            >
-              <Sun className="w-3.5 h-3.5" />
-            </div>
-            <div
-              className="p-1 rounded-md transition-all duration-200"
-              style={theme === 'dark'
-                ? { background: 'var(--accent)', color: 'white' }
-                : { color: 'var(--icon-muted)' }
-              }
-            >
-              <Moon className="w-3.5 h-3.5" />
-            </div>
+            {theme === 'dark' ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </button>
         </div>
 
-        <div className="flex items-center gap-3 mb-3 px-2">
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
-            style={{ background: 'var(--theme-gradient)' }}
-          >
-            {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-medium truncate" style={{ color: 'var(--text-sidebar-user)' }}>
-              {user?.name || 'User'}
-            </div>
-            <div className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
-              {user?.email}
-            </div>
-          </div>
-        </div>
         <button
           onClick={logout}
           className="sidebar-item w-full text-red-400 hover:text-red-300"

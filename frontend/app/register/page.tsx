@@ -1,11 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { Input, Button } from '@/components/ui';
-import { Mail, Lock, User, Zap, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function RegisterPage() {
@@ -25,7 +24,6 @@ export default function RegisterPage() {
       await register(form.email, form.password, form.name);
       toast.success('Account created successfully. Welcome!');
     } catch (err: any) {
-      // Amplify errors use err.message directly (not err.response?.data?.message like Axios)
       const message = err?.message || err?.response?.data?.message || 'Registration failed';
       console.error('[Register Error]', err);
       toast.error(message);
@@ -36,29 +34,19 @@ export default function RegisterPage() {
 
   return (
     <div className="auth-bg min-h-screen flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-md"
-      >
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <div
-              className="w-10 h-10 rounded-2xl flex items-center justify-center"
-              style={{ background: 'var(--theme-gradient)' }}
-            >
-              <Zap className="w-6 h-6 text-white" />
-            </div>
+      <div className="w-full max-w-[400px]">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center gap-2 mb-3">
+            <Mail className="w-8 h-8 text-[var(--accent)]" />
           </div>
-          <h1 className="text-2xl font-bold gradient-text">Create your account</h1>
-          <p className="text-sm mt-2" style={{ color: 'var(--text-secondary)' }}>
+          <h1 className="text-xl font-bold text-[var(--text-primary)]">Create your account</h1>
+          <p className="text-xs mt-1.5" style={{ color: 'var(--text-secondary)' }}>
             Start managing emails with AI
           </p>
         </div>
 
-        <div className="glass p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="glass p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <Input
               label="Full Name"
               type="text"
@@ -77,7 +65,7 @@ export default function RegisterPage() {
               icon={<Mail className="w-4 h-4" />}
             />
             <div className="space-y-1.5">
-              <label className="block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+              <label className="block text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
                 Password
               </label>
               <div className="relative">
@@ -108,16 +96,16 @@ export default function RegisterPage() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          <div className="mt-4 text-center">
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               Already have an account?{' '}
-              <Link href="/login" className="hover:underline font-medium" style={{ color: 'var(--accent)' }}>
+              <Link href="/login" className="hover:underline font-semibold" style={{ color: 'var(--accent)' }}>
                 Sign in
               </Link>
             </p>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }

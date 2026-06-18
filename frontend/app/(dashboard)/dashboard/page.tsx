@@ -5,7 +5,6 @@ import { motion } from 'framer-motion';
 import { userApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { Card, CategoryBadge, PriorityDot, Spinner, EmptyState } from '@/components/ui';
-import { IllustrationEmptyInbox } from '@/components/ui/illustrations';
 import {
   Mail,
   TrendingUp,
@@ -17,6 +16,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
+import { IllustrationEmptyInbox } from '@/components/ui/illustrations';
 
 interface Stats {
   totalEmails: number;
@@ -54,20 +54,20 @@ function StatCard({ icon, label, value, sub, color }: {
   color: string;
 }) {
   return (
-    <motion.div whileHover={{ y: -2 }} className="glass p-5">
+    <div className="glass p-5">
       <div className="flex items-start justify-between mb-3">
         <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: `${color}20`, border: `1px solid ${color}40` }}
+          className="w-10 h-10 rounded-lg flex items-center justify-center"
+          style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
         >
           <span style={{ color }}>{icon}</span>
         </div>
         <ArrowUpRight className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
       </div>
       <div className="text-2xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>{value}</div>
-      <div className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</div>
+      <div className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{label}</div>
       {sub && <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{sub}</div>}
-    </motion.div>
+    </div>
   );
 }
 
@@ -79,7 +79,6 @@ export default function DashboardPage() {
   useEffect(() => {
     userApi.getStats()
       .then((res) => {
-        // Bug #1 fix: backend now returns correctly named fields
         setStats(res.data);
       })
       .catch(console.error)
@@ -93,11 +92,11 @@ export default function DashboardPage() {
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-          {greeting}, {user?.name || user?.email?.split('@')[0]} 👋
+      <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}>
+        <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
+          {greeting}, {user?.name || user?.email?.split('@')[0]}
         </h1>
-        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
           Here's what's happening with your emails today
         </p>
       </motion.div>
@@ -108,7 +107,7 @@ export default function DashboardPage() {
         </div>
       ) : stats?.totalEmails === 0 ? (
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col items-center py-10 gap-4"
         >
@@ -125,28 +124,28 @@ export default function DashboardPage() {
               icon={<Mail className="w-5 h-5" />}
               label="Total Emails"
               value={stats?.totalEmails ?? 0}
-              color="#6366f1"
+              color="#C2500A"
             />
             <StatCard
               icon={<Inbox className="w-5 h-5" />}
               label="Unread"
               value={stats?.unreadCount ?? 0}
               sub="Need your attention"
-              color="#f59e0b"
+              color="#3B82F6"
             />
             <StatCard
               icon={<TrendingUp className="w-5 h-5" />}
               label="Categories"
               value={stats?.categoryBreakdown?.length ?? 0}
               sub="Active categories"
-              color="#10b981"
+              color="#10B981"
             />
             <StatCard
               icon={<Star className="w-5 h-5" />}
               label="Starred"
               value={stats?.starredCount ?? 0}
               sub="Quick access"
-              color="#10b981"
+              color="#F59E0B"
             />
           </div>
 
@@ -154,13 +153,13 @@ export default function DashboardPage() {
             {/* Recent emails */}
             <div className="lg:col-span-2 space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                   <Clock className="w-4 h-4" style={{ color: 'var(--accent)' }} />
                   Recent Emails
                 </h2>
                 <Link
                   href="/emails"
-                  className="text-xs flex items-center gap-1 hover:underline"
+                  className="text-xs flex items-center gap-1 hover:underline font-medium"
                   style={{ color: 'var(--accent)' }}
                 >
                   View all <ArrowUpRight className="w-3 h-3" />
@@ -173,15 +172,10 @@ export default function DashboardPage() {
                   description="Connect your Gmail account to start seeing emails here"
                 />
               ) : (
-                stats?.recentActivity?.map((email, i) => (
-                  <motion.div
-                    key={email.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
+                stats?.recentActivity?.map((email) => (
+                  <div key={email.id}>
                     <Link href={`/emails/${email.id}`}>
-                      <Card hover className="p-4">
+                      <Card className="p-4 hover:bg-[var(--bg-elevated)] transition-colors">
                         <div className="flex items-start gap-3">
                           <div
                             className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
@@ -223,14 +217,14 @@ export default function DashboardPage() {
                         </div>
                       </Card>
                     </Link>
-                  </motion.div>
+                  </div>
                 ))
               )}
             </div>
 
             {/* Category breakdown */}
             <div className="space-y-3">
-              <h2 className="text-base font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+              <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
                 <BarChart2 className="w-4 h-4" style={{ color: 'var(--accent)' }} />
                 Categories
               </h2>

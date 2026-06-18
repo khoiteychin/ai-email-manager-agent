@@ -60,7 +60,8 @@ async def send_email(
     current_user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await ai_service.send_email(current_user.uid, body.to, body.subject, body.body, db)
+    # Assume that calling this endpoint implies user confirmation from the UI
+    return await ai_service.send_email(current_user.uid, body.to, body.subject, body.body, db, confirmed=True)
 
 
 @router.get("/sessions")

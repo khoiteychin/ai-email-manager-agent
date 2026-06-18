@@ -79,7 +79,7 @@ def mask_email(email_address: str) -> str:
 # ─── Intent Detection ─────────────────────────────────────────
 
 class IntentSchema(BaseModel):
-    intent: Literal["search_sender", "compose_draft", "send_email", "general"] = Field(default="general")
+    intent: Literal["search_sender", "compose_draft", "send_email", "recent", "general"] = Field(default="general")
     sender_query: Optional[str] = None
     draft_to: Optional[str] = None
     draft_subject: Optional[str] = None
@@ -89,7 +89,7 @@ class IntentSchema(BaseModel):
 async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI) -> dict:
     """
     Detect user intent from message. Returns a dict with:
-    - intent: "search_sender" | "compose_draft" | "send_email" | "general"
+    - intent: "search_sender" | "compose_draft" | "send_email" | "recent" | "general"
     - sender_query: extracted sender name/email (for search_sender)
     - draft_info: {to, subject, body_hint} (for compose_draft/send_email)
     - reply_target_query: search query description if replying to a specific email
@@ -101,7 +101,7 @@ Message: "{message}"
 
 Return JSON with:
 {{
-  "intent": "search_sender" | "compose_draft" | "send_email" | "general",
+  "intent": "search_sender" | "compose_draft" | "send_email" | "recent" | "general",
   "sender_query": "extracted person name or email address if searching by sender, otherwise null",
   "draft_to": "recipient email or name if composing, otherwise null",
   "draft_subject": "email subject if mentioned, otherwise null",
@@ -116,7 +116,12 @@ Examples:
 - "send email to john@gmail.com saying hello" -> intent: "send_email", draft_to: "john@gmail.com", draft_body_hint: "hello"
 - "reply to the email from Khanh Do about confirmation saying ok" -> intent: "compose_draft", reply_target_query: "email from Khanh Do about confirmation", draft_body_hint: "ok"
 - "trả lời email của Nguyễn Văn A ngày 13 tháng 6 nói tôi đồng ý" -> intent: "compose_draft", reply_target_query: "email của Nguyễn Văn A ngày 13 tháng 6", draft_body_hint: "tôi đồng ý"
-- "what are my recent emails?" -> intent: "general"
+- "what are my recent emails?" -> intent: "recent"
+- "hiển thị các email mới nhất" -> intent: "recent"
+- "có email nào mới nhận hôm nay không" -> intent: "recent"
+- "show my latest emails" -> intent: "recent"
+- "hôm nay có thư nào mới không?" -> intent: "recent"
+- "hi" -> intent: "general"
 """
     try:
         completion = await openai.chat.completions.create(
@@ -293,7 +298,16 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
     # ── Search emails ─────────────────────────────────────────
     relevant_emails: list[Email] = []
 
-    if intent == "search_sender":
+    if intent == "recent":
+        # Fetch the 10 latest emails chronologically sorted by received_at DESC
+        result = await db.execute(
+            select(Email)
+            .where(Email.user_id == user_id)
+            .order_by(Email.received_at.desc())
+            .limit(10)
+        )
+        relevant_emails = list(result.scalars().all())
+    elif intent == "search_sender":
         sender_query = intent_data.get("sender_query") or ""
         if sender_query:
             relevant_emails = await search_emails_by_sender(user_id, sender_query, 10, db)

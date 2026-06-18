@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emailsApi, userApi } from '@/lib/api';
 import { CategoryBadge, PriorityDot, EmptyState } from '@/components/ui';
@@ -20,6 +20,7 @@ import {
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useSearchParams } from 'next/navigation';
 
 const CATEGORIES = ['All', 'Work', 'Personal', 'Social', 'Invoice', 'Promotion', 'Security'];
 
@@ -48,14 +49,33 @@ function EmailListSkeleton() {
 }
 
 export default function EmailsPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-6">
+        <EmailListSkeleton />
+      </div>
+    }>
+      <EmailsContent />
+    </Suspense>
+  );
+}
+
+function EmailsContent() {
+  const searchParams = useSearchParams();
   const [emails, setEmails] = useState<Email[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, totalPages: 1 });
   const [stats, setStats] = useState<{ totalEmails?: number; categoryBreakdown: Array<{ category: string; count: number }> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('All');
-  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [category, setCategory] = useState(searchParams.get('category') || 'All');
+  const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
+  const [isReadFilter, setIsReadFilter] = useState<boolean | undefined>(
+    searchParams.has('isRead') ? searchParams.get('isRead') === 'true' : undefined
+  );
+  const [isStarredFilter, setIsStarredFilter] = useState<boolean | undefined>(
+    searchParams.has('isStarred') ? searchParams.get('isStarred') === 'true' : undefined
+  );
   const [lastFetchTime, setLastFetchTime] = useState<string>(new Date().toISOString());
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const [newEmailBanner, setNewEmailBanner] = useState<{ count: number; emails: Array<{ subject: string; sender: string }> } | null>(null);
@@ -79,6 +99,8 @@ export default function EmailsPage() {
         limit: 20,
         search: search || undefined,
         category: category !== 'All' ? category.toLowerCase() : undefined,
+        isRead: isReadFilter,
+        isStarred: isStarredFilter,
       });
       setEmails(res.data.data);
       setMeta({
@@ -96,7 +118,7 @@ export default function EmailsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, category]);
+  }, [page, search, category, isReadFilter, isStarredFilter]);
 
   useEffect(() => {
     const timer = setTimeout(fetchEmails, 300);

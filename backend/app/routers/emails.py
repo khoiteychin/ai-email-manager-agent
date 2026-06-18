@@ -92,6 +92,7 @@ async def list_emails(
     priority: Optional[str] = None,
     search: Optional[str] = None,
     isRead: Optional[bool] = None,
+    isStarred: Optional[bool] = None,
     current_user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -120,6 +121,9 @@ async def list_emails(
     if isRead is not None:
         query = query.where(Email.is_read == isRead)
         count_query = count_query.where(Email.is_read == isRead)
+    if isStarred is not None:
+        query = query.where(Email.is_starred == isStarred)
+        count_query = count_query.where(Email.is_starred == isStarred)
     if search:
         search_filter = or_(
             Email.subject.ilike(f"%{search}%"),

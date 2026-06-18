@@ -117,6 +117,7 @@ export const emailsApi = {
     priority?: string;
     search?: string;
     isRead?: boolean;
+    isStarred?: boolean;
   }) => api.get('/emails', { params }),
   get: (id: string) => api.get(`/emails/${id}`),
   toggleStar: (id: string) => api.patch(`/emails/${id}/star`),

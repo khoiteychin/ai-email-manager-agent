@@ -17,4 +17,3 @@ python-multipart==0.0.9
 python-jose[cryptography]==3.3.0
 numpy>=1.26.4
 discord.py==2.4.0
-slowapi>=0.1.9

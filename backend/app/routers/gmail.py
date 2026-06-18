@@ -112,10 +112,18 @@ async def _sync_user_emails_background(user_id: str):
                 await db.commit()
                 logger.info(f"Gmail webhook: synced {len(new_ids)} new emails for user {user_id}")
 
-            # Classify any unclassified emails and send notifications
+            # Classify any unclassified emails and send notifications (only recent ones to avoid old email spam)
+            from datetime import datetime, timedelta, timezone
+            recent_cutoff = datetime.now(timezone.utc) - timedelta(days=2)
+            
             result = await db.execute(
                 select(Email.id, Email.subject, Email.body_text, Email.sender)
-                .where(Email.user_id == user_id, Email.summary.is_(None))
+                .where(
+                    Email.user_id == user_id, 
+                    Email.summary.is_(None),
+                    Email.received_at >= recent_cutoff
+                )
+                .order_by(Email.received_at.desc())
                 .limit(5)
             )
             for row in result.fetchall():

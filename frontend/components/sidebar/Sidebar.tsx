@@ -46,25 +46,26 @@ export default function Sidebar() {
   };
 
   return (
-    <aside
-      className="flex flex-col h-screen w-64 border-r-2"
-      style={{
-        background: 'var(--bg-sidebar)',
-        borderColor: 'var(--border)',
-      }}
-    >
-      {/* Logo */}
-      <div className="p-6 border-b-2" style={{ borderColor: 'var(--border)' }}>
-        <div className="flex items-center gap-3">
-          <IllustrationEmailLogo width={36} height={36} />
-          <div>
-            <div className="text-base font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-              AI Email
+    <div className="h-screen py-4 pl-4 flex">
+      <aside
+        className="flex flex-col h-full w-64 border-2 rounded-2xl shadow-[var(--neo-shadow)] overflow-hidden transition-all"
+        style={{
+          background: 'var(--bg-sidebar)',
+          borderColor: 'var(--border)',
+        }}
+      >
+        {/* Logo */}
+        <div className="p-6 border-b-2" style={{ borderColor: 'var(--border)' }}>
+          <div className="flex items-center gap-3">
+            <IllustrationEmailLogo width={36} height={36} />
+            <div>
+              <div className="text-base font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                AI Email
+              </div>
+              <div className="text-xs font-bold" style={{ color: 'var(--text-muted)' }}>Manager Bot 🧸</div>
             </div>
-            <div className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Manager Bot 🧸</div>
           </div>
         </div>
-      </div>
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2.5">
@@ -128,5 +129,6 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+    </div>
   );
 }

@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { userApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Card, CategoryBadge, PriorityDot, Spinner, EmptyState } from '@/components/ui';
+import { CategoryBadge, PriorityDot, EmptyState } from '@/components/ui';
+import { BrutalCard, BrutalCardHeader, BrutalCardTitle, BrutalCardContent } from '@/components/ui/brutal-card';
+import { BrutalButton } from '@/components/ui/brutal-button';
 import {
   Mail,
   TrendingUp,
@@ -55,19 +57,44 @@ function StatCard({ icon, label, value, sub, color, bgClass }: {
   bgClass: string;
 }) {
   return (
-    <div className="glass-hover p-5" style={{ background: bgClass, borderColor: '#2D2A26' }}>
-      <div className="flex items-start justify-between mb-3">
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center border-2"
-          style={{ background: '#FFFFFF', borderColor: '#2D2A26' }}
-        >
-          <span style={{ color }}>{icon}</span>
+    <BrutalCard className="hover:-translate-y-1 hover:shadow-[var(--neo-shadow-hover)] cursor-pointer" style={{ background: bgClass }}>
+      <BrutalCardContent className="p-5 pt-5">
+        <div className="flex items-start justify-between mb-3">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center border-2 border-[var(--border)] bg-white"
+          >
+            <span style={{ color }}>{icon}</span>
+          </div>
+          <ArrowUpRight className="w-5 h-5 text-[var(--border)]" />
         </div>
-        <ArrowUpRight className="w-4 h-4" style={{ color: '#2D2A26' }} />
+        <div className="text-3xl font-extrabold mb-1 text-[var(--border)]">{value}</div>
+        <div className="text-sm font-bold text-[var(--border)]">{label}</div>
+        {sub && <div className="text-[11px] font-bold mt-1 text-[var(--text-secondary)]">{sub}</div>}
+      </BrutalCardContent>
+    </BrutalCard>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-8" aria-busy="true" aria-label="Loading dashboard">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <BrutalCard key={i} className="h-32 bg-gray-200 animate-pulse border-gray-300 shadow-none" />
+        ))}
       </div>
-      <div className="text-3xl font-extrabold mb-1" style={{ color: '#2D2A26' }}>{value}</div>
-      <div className="text-xs font-bold" style={{ color: '#4D4540' }}>{label}</div>
-      {sub && <div className="text-[10px] font-bold mt-1" style={{ color: '#5C534C' }}>{sub}</div>}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
+          <div className="h-6 w-32 bg-gray-200 animate-pulse rounded" />
+          {[1, 2, 3].map((i) => (
+            <BrutalCard key={i} className="h-24 bg-gray-200 animate-pulse border-gray-300 shadow-none" />
+          ))}
+        </div>
+        <div className="space-y-4">
+          <div className="h-6 w-32 bg-gray-200 animate-pulse rounded" />
+          <BrutalCard className="h-64 bg-gray-200 animate-pulse border-gray-300 shadow-none" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -91,36 +118,40 @@ export default function DashboardPage() {
     greetingHour < 12 ? 'Good morning' : greetingHour < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>
+        <h1 className="text-2xl font-black text-[var(--text-primary)]">
           {greeting}, {user?.name || user?.email?.split('@')[0]}
         </h1>
-        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+        <p className="text-sm mt-1 font-semibold text-[var(--text-secondary)]">
           Here's what's happening with your emails today
         </p>
       </motion.div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner />
-        </div>
+        <DashboardSkeleton />
       ) : stats?.totalEmails === 0 ? (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-center py-10 gap-4"
+          className="flex flex-col items-center justify-center py-20 gap-6"
         >
           <IllustrationEmptyInbox />
-          <p style={{ color: 'var(--text-muted)' }} className="text-sm">
-            Connect Gmail in Settings to get started
-          </p>
+          <div className="text-center">
+            <h3 className="text-xl font-bold mb-2">No emails yet</h3>
+            <p className="text-sm text-[var(--text-muted)] mb-6">
+              Connect your Gmail account in settings to get started.
+            </p>
+            <Link href="/settings">
+              <BrutalButton variant="primary">Connect Gmail</BrutalButton>
+            </Link>
+          </div>
         </motion.div>
       ) : (
         <>
           {/* Stat cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
             <StatCard
               icon={<Mail className="w-5 h-5" />}
               label="Total Emails"
@@ -154,120 +185,118 @@ export default function DashboardPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
             {/* Recent emails */}
-            <div className="lg:col-span-2 space-y-3">
+            <div className="lg:col-span-2 space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                  <Clock className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+                <h2 className="text-lg font-black flex items-center gap-2 text-[var(--text-primary)]">
+                  <Clock className="w-5 h-5 text-[var(--accent)]" />
                   Recent Emails
                 </h2>
-                <Link
-                  href="/emails"
-                  className="text-xs flex items-center gap-1 hover:underline font-medium"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  View all <ArrowUpRight className="w-3 h-3" />
+                <Link href="/emails">
+                  <BrutalButton variant="ghost" size="sm">
+                    View all <ArrowUpRight className="w-4 h-4 ml-1" />
+                  </BrutalButton>
                 </Link>
               </div>
-              {stats?.recentActivity?.length === 0 ? (
-                <EmptyState
-                  variant="inbox"
-                  title="No emails yet"
-                  description="Connect your Gmail account to start seeing emails here"
-                />
-              ) : (
-                stats?.recentActivity?.map((email) => (
-                  <div key={email.id}>
-                    <Link href={`/emails/${email.id}`}>
-                      <Card className="p-4 hover:bg-[var(--bg-elevated)] transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div
-                            className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
-                            style={{ background: email.isRead ? 'var(--border)' : 'var(--accent)' }}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span
-                                className="text-sm font-medium truncate"
-                                style={{ color: email.isRead ? 'var(--text-muted)' : 'var(--text-primary)' }}
-                              >
-                                {email.subject || '(No subject)'}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <span
-                                className="text-xs"
-                                style={{ color: 'var(--text-secondary)' }}
-                              >
-                                {email.fromAddress || email.sender || 'Unknown'}
-                              </span>
-                              <span className="text-xs" style={{ color: 'var(--border)' }}>•</span>
-                              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                {email.receivedAt
-                                  ? formatDistanceToNow(new Date(email.receivedAt), { addSuffix: true })
-                                  : 'Unknown'}
-                              </span>
-                            </div>
-                            {email.summary && (
-                              <p className="text-xs line-clamp-2" style={{ color: 'var(--text-secondary)' }}>
-                                {email.summary}
-                              </p>
-                            )}
-                            <div className="flex items-center gap-2 mt-2">
-                              {email.category && <CategoryBadge category={email.category} />}
-                              {email.priority && <PriorityDot priority={email.priority} />}
+              
+              <div className="space-y-3">
+                {stats?.recentActivity?.length === 0 ? (
+                  <BrutalCard className="p-8 text-center bg-[var(--bg-secondary)]">
+                    <p className="font-bold text-[var(--text-secondary)]">No recent emails</p>
+                  </BrutalCard>
+                ) : (
+                  stats?.recentActivity?.map((email) => (
+                    <Link key={email.id} href={`/emails/${email.id}`} className="block">
+                      <BrutalCard className="hover:bg-[var(--bg-elevated)] hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[var(--neo-shadow-hover)] transition-all">
+                        <BrutalCardContent className="p-4 pt-4">
+                          <div className="flex items-start gap-4">
+                            <div
+                              className="w-3 h-3 rounded-full mt-1.5 flex-shrink-0 border-2 border-[var(--border)]"
+                              style={{ background: email.isRead ? 'var(--bg-card)' : 'var(--accent)' }}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
+                                <span
+                                  className="text-base font-bold truncate"
+                                  style={{ color: email.isRead ? 'var(--text-secondary)' : 'var(--text-primary)' }}
+                                >
+                                  {email.subject || '(No subject)'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-bold text-[var(--text-secondary)]">
+                                  {email.fromAddress || email.sender || 'Unknown'}
+                                </span>
+                                <span className="text-[var(--text-muted)]">•</span>
+                                <span className="text-xs font-bold text-[var(--text-muted)]">
+                                  {email.receivedAt
+                                    ? formatDistanceToNow(new Date(email.receivedAt), { addSuffix: true })
+                                    : 'Unknown'}
+                                </span>
+                              </div>
+                              {email.summary && (
+                                <p className="text-sm font-medium line-clamp-2 text-[var(--text-secondary)]">
+                                  {email.summary}
+                                </p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-2 mt-3">
+                                {email.category && <CategoryBadge category={email.category} />}
+                                {email.priority && <PriorityDot priority={email.priority} />}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </Card>
+                        </BrutalCardContent>
+                      </BrutalCard>
                     </Link>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
 
             {/* Category breakdown */}
-            <div className="space-y-3">
-              <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                <BarChart2 className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+            <div className="space-y-4">
+              <h2 className="text-lg font-black flex items-center gap-2 text-[var(--text-primary)]">
+                <BarChart2 className="w-5 h-5 text-[var(--accent)]" />
                 Categories
               </h2>
-              <Card className="p-5 space-y-4">
-                {stats?.categoryBreakdown?.length === 0 ? (
-                  <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>
-                    No data yet
-                  </p>
-                ) : (
-                  stats?.categoryBreakdown?.map((item) => {
-                    const total = stats.totalEmails || 1;
-                    const pct = Math.round((item.count / total) * 100);
-                    const catLower = item.category.toLowerCase();
-                    const color = CATEGORY_COLORS[catLower] || 'var(--accent)';
-                    const catLabel = catLower.charAt(0).toUpperCase() + catLower.slice(1);
-                    return (
-                      <div key={item.category}>
-                        <div className="flex justify-between text-xs mb-1.5">
-                          <span style={{ color: 'var(--text-secondary)' }}>{catLabel}</span>
-                          <span style={{ color }}>{item.count}</span>
+              <BrutalCard>
+                <BrutalCardContent className="p-6 space-y-5">
+                  {stats?.categoryBreakdown?.length === 0 ? (
+                    <p className="text-sm font-bold text-center py-8 text-[var(--text-muted)]">
+                      No data yet
+                    </p>
+                  ) : (
+                    stats?.categoryBreakdown?.map((item) => {
+                      const total = stats.totalEmails || 1;
+                      const pct = Math.round((item.count / total) * 100);
+                      const catLower = item.category.toLowerCase();
+                      const color = CATEGORY_COLORS[catLower] || 'var(--accent)';
+                      const catLabel = catLower.charAt(0).toUpperCase() + catLower.slice(1);
+                      return (
+                        <div key={item.category}>
+                          <div className="flex justify-between text-sm font-bold mb-2">
+                            <span className="text-[var(--text-secondary)]">{catLabel}</span>
+                            <span>{item.count}</span>
+                          </div>
+                          <div
+                            className="h-3 rounded-full overflow-hidden border-2 border-[var(--border)]"
+                            style={{ background: 'var(--bg-card)' }}
+                          >
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${pct}%` }}
+                              transition={{ duration: 0.8, delay: 0.2 }}
+                              className="h-full border-r-2 border-[var(--border)]"
+                              style={{ background: color }}
+                            />
+                          </div>
                         </div>
-                        <div
-                          className="h-1.5 rounded-full overflow-hidden"
-                          style={{ background: 'var(--bg-secondary)' }}
-                        >
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
-                            transition={{ duration: 0.8, delay: 0.2 }}
-                            className="h-full rounded-full"
-                            style={{ background: color }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </Card>
+                      );
+                    })
+                  )}
+                </BrutalCardContent>
+              </BrutalCard>
             </div>
           </div>
         </>

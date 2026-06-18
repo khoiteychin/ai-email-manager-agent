@@ -3,7 +3,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { emailsApi, userApi } from '@/lib/api';
-import { CategoryBadge, PriorityDot, Spinner, EmptyState } from '@/components/ui';
+import { CategoryBadge, PriorityDot, EmptyState } from '@/components/ui';
+import { BrutalCard, BrutalCardContent } from '@/components/ui/brutal-card';
+import { BrutalButton } from '@/components/ui/brutal-button';
 import {
   Mail,
   Search,
@@ -33,6 +35,16 @@ interface Email {
   isRead: boolean;
   isStarred: boolean;
   receivedAt: string;
+}
+
+function EmailListSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Loading emails">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <BrutalCard key={i} className="h-28 bg-gray-200 animate-pulse border-gray-300 shadow-none" />
+      ))}
+    </div>
+  );
 }
 
 export default function EmailsPage() {
@@ -143,18 +155,18 @@ export default function EmailsPage() {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 md:p-8 max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-            <Mail className="w-5 h-5 text-[var(--accent)]" />
+          <h1 className="text-2xl font-black flex items-center gap-2 text-[var(--text-primary)]">
+            <Mail className="w-6 h-6 text-[var(--accent)]" />
             Emails
           </h1>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+          <p className="text-sm mt-1 font-bold text-[var(--text-secondary)]">
             {meta.total} emails total
             {lastRefresh && (
-              <span className="ml-2">
+              <span className="ml-2 opacity-80">
                 · Updated {formatDistanceToNow(lastRefresh, { addSuffix: true })}
               </span>
             )}
@@ -167,13 +179,7 @@ export default function EmailsPage() {
             value={syncLimit}
             onChange={(e) => setSyncLimit(Number(e.target.value))}
             disabled={syncing}
-            className="px-3 py-2 rounded-xl text-sm font-bold outline-none cursor-pointer border-2"
-            style={{
-              background: 'var(--bg-card)',
-              borderColor: 'var(--border)',
-              color: 'var(--text-primary)',
-              boxShadow: '2px 2px 0px var(--border)',
-            }}
+            className="px-3 py-2 rounded-xl text-sm font-bold outline-none cursor-pointer border-2 border-[var(--border)] bg-[var(--bg-card)] shadow-[2px_2px_0px_var(--border)] focus:ring-2 focus:ring-[var(--accent)]"
             title="Emails to sync"
           >
             <option value={10}>10 emails</option>
@@ -183,25 +189,15 @@ export default function EmailsPage() {
             <option value={200}>200 emails</option>
           </select>
 
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border-2 transition-all duration-150 disabled:opacity-50"
-            style={{
-              background: 'var(--accent-light)',
-              borderColor: 'var(--border)',
-              color: 'var(--text-primary)',
-              boxShadow: '2px 2px 0px var(--border)',
-            }}
-          >
+          <BrutalButton onClick={handleSync} disabled={syncing} variant="ghost" className="bg-[var(--accent-light)]">
             <motion.div
               animate={syncing ? { rotate: 360 } : { rotate: 0 }}
               transition={{ duration: 0.6, repeat: syncing ? Infinity : 0, ease: 'linear' }}
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-4 h-4 mr-1" />
             </motion.div>
             {syncing ? 'Syncing...' : 'Refresh'}
-          </button>
+          </BrutalButton>
         </div>
       </div>
 
@@ -216,12 +212,12 @@ export default function EmailsPage() {
           >
             <button
               onClick={loadNewEmails}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold border-2 transition-all duration-150 hover:brightness-110"
+              className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold border-2 transition-all duration-150 active:translate-y-1 active:shadow-none"
               style={{
                 background: 'var(--accent)',
                 borderColor: 'var(--border)',
                 color: 'var(--text-primary)',
-                boxShadow: '3px 3px 0px var(--border)',
+                boxShadow: '4px 4px 0px var(--border)',
               }}
             >
               <div className="flex items-center gap-2">
@@ -242,64 +238,64 @@ export default function EmailsPage() {
         )}
       </AnimatePresence>
 
-      {/* Filters */}
-      <div className="glass p-4 space-y-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
-          <input
-            type="text"
-            placeholder="Search emails..."
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="input-field pl-10 w-full"
-          />
-        </div>
+      {/* Filters & Search */}
+      <BrutalCard className="bg-[var(--bg-card)]">
+        <BrutalCardContent className="p-4 space-y-4">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--border)]" />
+            <input
+              type="text"
+              placeholder="Search emails..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              className="w-full pl-12 pr-4 py-3 rounded-xl text-base font-bold outline-none border-2 border-[var(--border)] bg-white shadow-[inset_2px_2px_0px_rgba(0,0,0,0.05)] focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-light)] transition-all"
+            />
+          </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <Filter className="w-3.5 h-3.5 mr-1" style={{ color: 'var(--text-secondary)' }} />
-          {(() => {
-            const getCategoryCount = (cat: string) => {
-              if (cat === 'All') return stats?.totalEmails || meta.total || 0;
-              const item = stats?.categoryBreakdown?.find(
-                (b) => b.category.toLowerCase() === cat.toLowerCase()
-              );
-              return item ? item.count : 0;
-            };
-            return CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => { setCategory(cat); setPage(1); }}
-                className="px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-150 flex items-center gap-1.5 border-2"
-                style={{
-                  background: category === cat ? 'var(--accent)' : 'var(--bg-card)',
-                  borderColor: 'var(--border)',
-                  color: 'var(--text-primary)',
-                  boxShadow: category === cat ? '1px 1px 0px var(--border)' : '2px 2px 0px var(--border)',
-                  transform: category === cat ? 'translate(1px, 1px)' : 'none',
-                }}
-              >
-                <span>{cat}</span>
-                <span
-                  className="px-1.5 py-0.5 rounded-full text-[10px] font-bold border"
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-4 h-4 mr-1 text-[var(--border)]" />
+            {(() => {
+              const getCategoryCount = (cat: string) => {
+                if (cat === 'All') return stats?.totalEmails || meta.total || 0;
+                const item = stats?.categoryBreakdown?.find(
+                  (b) => b.category.toLowerCase() === cat.toLowerCase()
+                );
+                return item ? item.count : 0;
+              };
+              return CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => { setCategory(cat); setPage(1); }}
+                  className="px-4 py-2 rounded-full text-sm font-bold transition-all duration-150 flex items-center gap-2 border-2 active:translate-y-1 active:shadow-none"
                   style={{
-                    background: category === cat ? 'rgba(255,255,255,0.2)' : 'var(--bg-secondary)',
+                    background: category === cat ? 'var(--accent)' : 'var(--bg-card)',
                     borderColor: 'var(--border)',
                     color: 'var(--text-primary)',
+                    boxShadow: category === cat ? '2px 2px 0px var(--border)' : '3px 3px 0px var(--border)',
+                    transform: category === cat ? 'translate(1px, 1px)' : 'none',
                   }}
                 >
-                  {getCategoryCount(cat)}
-                </span>
-              </button>
-            ));
-          })()}
-        </div>
-      </div>
+                  <span>{cat}</span>
+                  <span
+                    className="px-2 py-0.5 rounded-full text-[11px] font-black border-2"
+                    style={{
+                      background: category === cat ? 'rgba(255,255,255,0.3)' : 'var(--bg-secondary)',
+                      borderColor: 'var(--border)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {getCategoryCount(cat)}
+                  </span>
+                </button>
+              ));
+            })()}
+          </div>
+        </BrutalCardContent>
+      </BrutalCard>
 
       {/* Email list */}
       {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner />
-        </div>
+        <EmailListSkeleton />
       ) : emails.length === 0 ? (
         search ? (
           <EmptyState variant="search" title="No results" description="Try different keywords" />
@@ -307,66 +303,67 @@ export default function EmailsPage() {
           <EmptyState variant="inbox" title="Inbox is empty" description="Click Refresh to sync Gmail" />
         )
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {emails.map((email) => (
-            <div
-              key={email.id}
-              className="glass-hover p-4"
-            >
-              <Link href={`/emails/${email.id}`}>
-                <div className="flex items-start gap-3 group">
-                  <div className="mt-1.5 flex-shrink-0 w-2.5 h-2.5 flex items-center justify-center">
-                    {!email.isRead && (
-                      <div className="w-2.5 h-2.5 rounded-full border border-black bg-[var(--danger)] animate-pulse" />
-                    )}
-                  </div>
+            <div key={email.id}>
+              <Link href={`/emails/${email.id}`} className="block">
+                <BrutalCard className="hover:bg-[var(--bg-elevated)] hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[var(--neo-shadow-hover)] transition-all group">
+                  <BrutalCardContent className="p-4 sm:p-5">
+                    <div className="flex items-start gap-4">
+                      <div className="mt-1.5 flex-shrink-0 w-3 h-3 flex items-center justify-center">
+                        {!email.isRead && (
+                          <div className="w-3 h-3 rounded-full border-2 border-[var(--border)] bg-[var(--danger)] animate-pulse" />
+                        )}
+                      </div>
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className={`text-sm truncate flex-1 ${email.isRead ? 'text-[var(--text-secondary)] font-medium' : 'text-[var(--text-primary)] font-bold'}`}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-1">
+                          <span
+                            className={`text-base truncate flex-1 ${email.isRead ? 'text-[var(--text-secondary)] font-bold' : 'text-[var(--text-primary)] font-black'}`}
+                          >
+                            {email.subject || '(No subject)'}
+                          </span>
+                          <span className="text-sm flex-shrink-0 font-bold text-[var(--text-muted)]">
+                            {email.receivedAt
+                              ? formatDistanceToNow(new Date(email.receivedAt), { addSuffix: true })
+                              : '—'}
+                          </span>
+                        </div>
+
+                        <div className="text-sm mb-2 font-bold text-[var(--text-secondary)]">
+                          From: {email.sender || email.fromAddress || 'Unknown'}
+                        </div>
+
+                        {email.summary ? (
+                          <p className="text-sm line-clamp-2 mb-3 font-semibold text-[var(--text-secondary)]">
+                            🧸 AI Summary: {email.summary}
+                          </p>
+                        ) : email.bodyPreview ? (
+                          <p className="text-sm line-clamp-2 mb-3 text-[var(--text-muted)] font-medium">
+                            {email.bodyPreview}
+                          </p>
+                        ) : null}
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          {email.category && <CategoryBadge category={email.category} />}
+                          {email.priority && <PriorityDot priority={email.priority} />}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={(e) => toggleStar(e, email.id)}
+                        className="flex-shrink-0 p-2 rounded-xl border-2 hover:bg-[#FEF3C7] transition-all active:translate-y-1 active:shadow-none"
+                        style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', boxShadow: '3px 3px 0px var(--border)' }}
                       >
-                        {email.subject || '(No subject)'}
-                      </span>
-                      <span className="text-xs flex-shrink-0 font-bold" style={{ color: 'var(--text-muted)' }}>
-                        {email.receivedAt
-                          ? formatDistanceToNow(new Date(email.receivedAt), { addSuffix: true })
-                          : '—'}
-                      </span>
+                        {email.isStarred ? (
+                          <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
+                        ) : (
+                          <StarOff className="w-5 h-5 text-[var(--text-muted)]" />
+                        )}
+                      </button>
                     </div>
-
-                    <div className="text-xs mb-2 font-semibold" style={{ color: 'var(--text-secondary)' }}>
-                      From: {email.sender || email.fromAddress || 'Unknown'}
-                    </div>
-
-                    {email.summary ? (
-                      <p className="text-xs line-clamp-2 mb-2 font-medium" style={{ color: 'var(--text-secondary)' }}>
-                        🧸 AI Summary: {email.summary}
-                      </p>
-                    ) : email.bodyPreview ? (
-                      <p className="text-xs line-clamp-2 mb-2" style={{ color: 'var(--text-muted)' }}>
-                        {email.bodyPreview}
-                      </p>
-                    ) : null}
-
-                    <div className="flex items-center gap-2">
-                      {email.category && <CategoryBadge category={email.category} />}
-                      {email.priority && <PriorityDot priority={email.priority} />}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={(e) => toggleStar(e, email.id)}
-                    className="flex-shrink-0 opacity-100 p-1.5 rounded-xl border-2 hover:bg-yellow-100 transition-colors"
-                    style={{ borderColor: 'var(--border)', background: 'var(--bg-card)', boxShadow: '2px 2px 0px var(--border)' }}
-                  >
-                    {email.isStarred ? (
-                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                    ) : (
-                      <StarOff className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
-                    )}
-                  </button>
-                </div>
+                  </BrutalCardContent>
+                </BrutalCard>
               </Link>
             </div>
           ))}
@@ -375,24 +372,24 @@ export default function EmailsPage() {
 
       {/* Pagination */}
       {meta.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-3 pt-4">
-          <button
+        <div className="flex items-center justify-center gap-4 pt-6 pb-10">
+          <BrutalButton
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="btn-ghost px-3 py-2 disabled:opacity-40"
+            variant="ghost"
           >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <span className="text-sm" style={{ color: '#94a3b8' }}>
+            <ChevronLeft className="w-5 h-5" />
+          </BrutalButton>
+          <span className="text-sm font-black text-[var(--text-secondary)]">
             {page} / {meta.totalPages}
           </span>
-          <button
+          <BrutalButton
             onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
             disabled={page === meta.totalPages}
-            className="btn-ghost px-3 py-2 disabled:opacity-40"
+            variant="ghost"
           >
-            <ChevronRight className="w-4 h-4" />
-          </button>
+            <ChevronRight className="w-5 h-5" />
+          </BrutalButton>
         </div>
       )}
     </div>

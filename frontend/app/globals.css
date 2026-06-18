@@ -247,6 +247,17 @@ body {
     0%, 80%, 100% { transform: scale(0.8) translateY(0); }
     40% { transform: scale(1.1) translateY(-6px); }
   }
+
+  /* Polka dot background for Neubrutalism */
+  .bg-polka-dot {
+    background-color: var(--bg-primary);
+    background-image: radial-gradient(var(--text-muted) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  
+  .dark .bg-polka-dot {
+    background-image: radial-gradient(var(--text-muted) 1px, transparent 1px);
+  }
 }
 
 .auth-bg {

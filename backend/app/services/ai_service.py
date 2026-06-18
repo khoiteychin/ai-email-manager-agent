@@ -2,6 +2,7 @@ import json
 import logging
 import re
 from typing import Optional
+from pydantic import BaseModel, Field
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, or_
@@ -21,6 +22,14 @@ def get_openai_client() -> AsyncOpenAI:
 
 
 # ─── Intent Detection ─────────────────────────────────────────
+
+class IntentSchema(BaseModel):
+    intent: str = Field(default="general")
+    sender_query: Optional[str] = None
+    draft_to: Optional[str] = None
+    draft_subject: Optional[str] = None
+    draft_body_hint: Optional[str] = None
+    reply_target_query: Optional[str] = None
 
 async def detect_intent(message: str, openai: AsyncOpenAI) -> dict:
     """
@@ -60,8 +69,11 @@ Examples:
             response_format={"type": "json_object"},
             temperature=0,
         )
-        return json.loads(completion.choices[0].message.content or "{}")
-    except Exception:
+        data = json.loads(completion.choices[0].message.content or "{}")
+        parsed = IntentSchema.model_validate(data)
+        return parsed.model_dump()
+    except Exception as e:
+        logger.warning(f"Intent parsing failed: {e}")
         return {"intent": "general"}
 
 

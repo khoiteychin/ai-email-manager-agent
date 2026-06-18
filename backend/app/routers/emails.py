@@ -1,13 +1,14 @@
 import asyncio
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, func, text
 from sqlalchemy.dialects.postgresql import insert
 from app.database import get_db, AsyncSessionLocal
 from app.dependencies import get_current_user, AuthUser
 from app.models import Email, User
+from app.utils.limiter import limiter
 import app.services.gmail_service as gmail_service
 import app.services.ai_service as ai_service
 
@@ -225,7 +226,9 @@ async def toggle_star(
 
 
 @router.post("/sync")
+@limiter.limit("5/minute")
 async def sync_emails(
+    request: Request,
     current_user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

@@ -1,10 +1,11 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user, AuthUser
 import app.services.ai_service as ai_service
+from app.utils.limiter import limiter
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -28,7 +29,9 @@ class SendEmailRequest(BaseModel):
 
 
 @router.post("/chat")
+@limiter.limit("20/minute")
 async def chat(
+    request: Request,
     body: ChatRequest,
     current_user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -37,7 +40,9 @@ async def chat(
 
 
 @router.post("/draft")
+@limiter.limit("10/minute")
 async def generate_draft(
+    request: Request,
     body: DraftRequest,
     current_user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -48,7 +53,9 @@ async def generate_draft(
 
 
 @router.post("/send")
+@limiter.limit("5/minute")
 async def send_email(
+    request: Request,
     body: SendEmailRequest,
     current_user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

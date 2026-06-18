@@ -38,7 +38,7 @@ interface Email {
 export default function EmailsPage() {
   const [emails, setEmails] = useState<Email[]>([]);
   const [meta, setMeta] = useState({ total: 0, page: 1, totalPages: 1 });
-  const [stats, setStats] = useState<{ categoryBreakdown: Array<{ category: string; count: number }> } | null>(null);
+  const [stats, setStats] = useState<{ totalEmails?: number; categoryBreakdown: Array<{ category: string; count: number }> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
@@ -256,7 +256,7 @@ export default function EmailsPage() {
           <Filter className="w-3.5 h-3.5 mr-1" style={{ color: 'var(--text-secondary)' }} />
           {(() => {
             const getCategoryCount = (cat: string) => {
-              if (cat === 'All') return meta.total || 0;
+              if (cat === 'All') return stats?.totalEmails || meta.total || 0;
               const item = stats?.categoryBreakdown?.find(
                 (b) => b.category.toLowerCase() === cat.toLowerCase()
               );

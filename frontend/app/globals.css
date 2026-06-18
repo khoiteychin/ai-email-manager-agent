@@ -34,26 +34,26 @@
 
 /* ─── Dark Mode Override (Sleek Space Pop Art) ──────────────── */
 html.dark {
-  --bg-primary:    #181615;
-  --bg-secondary:  #23201F;
-  --bg-card:       #2D2724;
-  --bg-elevated:   #3B3330;
-  --border:        #FFF3E3;
-  --text-primary:  #FFF3E3;
-  --text-secondary:#DFD3C3;
-  --text-muted:    #AFA393;
+  --bg-primary:    #151312; /* Darker carbon background */
+  --bg-secondary:  #1E1C1A;
+  --bg-card:       #272422;
+  --bg-elevated:   #332F2C;
+  --border:        #4D4540; /* Darker warm border outline */
+  --text-primary:  #E5DFD5; /* Soft off-white text (prevents glare) */
+  --text-secondary:#B8AEA0; /* Soft secondary text */
+  --text-muted:    #877E73;  /* Muted dark grey-brown */
   --accent:        #FBBF24;
-  --accent-light:  #78350F;
-  --bg-sidebar:    #23201F;
-  --bg-topbar:     #23201F;
+  --accent-light:  #4E2406; /* Darker amber accent background */
+  --bg-sidebar:    #1E1C1A;
+  --bg-topbar:     #1E1C1A;
 
-  --text-sidebar-logo: #FFF3E3;
-  --text-sidebar-user: #FFF3E3;
+  --text-sidebar-logo: #E5DFD5;
+  --text-sidebar-user: #E5DFD5;
 
-  /* Playful Shadows (Light border shadow for dark mode) */
-  --neo-shadow: 4px 4px 0px #FFF3E3;
-  --neo-shadow-hover: 1px 1px 0px #FFF3E3;
-  --neo-shadow-active: 0px 0px 0px #FFF3E3;
+  /* Playful Shadows (Dark borders/shadows for better contrast and comfort) */
+  --neo-shadow: 4px 4px 0px #0A0909;
+  --neo-shadow-hover: 1px 1px 0px #0A0909;
+  --neo-shadow-active: 0px 0px 0px #0A0909;
 }
 
 /* ─── Base Styles ────────────────────────────────────────────── */

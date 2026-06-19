@@ -123,7 +123,7 @@ export const emailsApi = {
   toggleStar: (id: string) => api.patch(`/emails/${id}/star`),
   markAsRead: (id: string, isRead: boolean) => api.patch(`/emails/${id}/read`, { isRead }),
   // Bug #3 fix: manual sync trigger (now uses incremental sync internally)
-  sync: () => api.post('/emails/sync'),
+  sync: (limit?: number) => api.post('/emails/sync', {}, { params: limit ? { limit } : {} }),
   // Bug #4 fix: lightweight polling – only queries DB, no Gmail API call
   checkNew: (since?: string) => api.get('/emails/check-new', { params: since ? { since } : {} }),
 };

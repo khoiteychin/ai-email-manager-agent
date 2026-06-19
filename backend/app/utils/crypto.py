@@ -17,13 +17,19 @@ def get_fernet() -> Fernet:
         
     key = settings.ENCRYPTION_KEY
     if not key:
-        raise RuntimeError("ENCRYPTION_KEY must be set in environment variables. Generate a new key with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"")
+        raise RuntimeError(
+            "ENCRYPTION_KEY must be set in environment variables. "
+            "Generate a new key with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        )
     
     try:
         _fernet = Fernet(key.encode())
     except Exception as e:
-        logger.error(f"Invalid ENCRYPTION_KEY: {e}. Generating a temporary one, tokens will be lost on restart.")
-        _fernet = Fernet(Fernet.generate_key())
+        # Do NOT fall back to a temporary key — that would silently invalidate all stored tokens on restart.
+        raise RuntimeError(
+            f"Invalid ENCRYPTION_KEY: {e}. "
+            "Please fix your .env configuration."
+        ) from e
         
     return _fernet
 

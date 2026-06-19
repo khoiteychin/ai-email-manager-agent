@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, func, text
 from sqlalchemy.dialects.postgresql import insert
 from app.database import get_db, AsyncSessionLocal
-from app.dependencies import get_current_user, AuthUser
+from app.dependencies import get_current_user, AuthUser, ensure_user_exists
 from app.models import Email, User
 from app.utils.limiter import limiter
 import app.services.gmail_service as gmail_service
@@ -15,14 +15,6 @@ import app.services.ai_service as ai_service
 router = APIRouter(prefix="/emails", tags=["Emails"])
 logger = logging.getLogger(__name__)
 
-
-async def ensure_user(uid: str, email: str, db: AsyncSession):
-    result = await db.execute(select(User).where(User.id == uid))
-    user = result.scalar_one_or_none()
-    if not user:
-        user = User(id=uid, email=email)
-        db.add(user)
-        await db.commit()
 
 
 async def _classify_in_background(email_id: str, subject: str, body_text: str, user_id: str):
@@ -39,23 +31,26 @@ async def _classify_in_background(email_id: str, subject: str, body_text: str, u
                     from app.routers.discord import send_discord_notification
                     from app.services.ai_service import format_discord_notification
                     msg = format_discord_notification(email, result)
-                    await send_discord_notification(user_id, msg, db)
+                    try:
+                        await send_discord_notification(user_id, msg, db)
+                    except Exception as discord_err:
+                        logger.warning(f"Background Discord notify failed: {discord_err}")
                 
         except Exception as e:
             logger.error(f"Background classify failed for {email_id}: {e}")
 
 
-async def sync_from_gmail(user_id: str, db: AsyncSession) -> int:
+async def sync_from_gmail(user_id: str, db: AsyncSession, max_results: int = 50) -> int:
     """
     Bug #3 fix: Use incremental sync (History API) if historyId is stored – very fast (~200ms).
-    Falls back to full sync (50 emails) on first run or when historyId is expired/missing.
+    Falls back to full sync on first run or when historyId is expired/missing.
     """
     # Try incremental sync first
     emails_data = await gmail_service.fetch_emails_incremental(user_id, db)
 
     if not emails_data:
         # No historyId yet or no new messages via History API – do full sync
-        emails_data = await gmail_service.fetch_recent_emails(user_id, db, 50)
+        emails_data = await gmail_service.fetch_recent_emails(user_id, db, max_results)
 
     gmail_ids = [d["gmail_id"] for d in emails_data if d.get("gmail_id")]
     existing_gmail_ids = set()
@@ -106,7 +101,7 @@ async def list_emails(
     current_user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    await ensure_user(current_user.uid, current_user.email, db)
+    await ensure_user_exists(db, current_user.uid, current_user.email)
 
     # Check count; sync if empty
     count_result = await db.execute(
@@ -243,13 +238,14 @@ async def toggle_star(
 @limiter.limit("5/minute")
 async def sync_emails(
     request: Request,
+    limit: int = Query(50, ge=1, le=200, description="Max number of emails to sync"),
     current_user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Bug #3 fix: Manual sync trigger so users can refresh their inbox on demand."""
-    await ensure_user(current_user.uid, current_user.email, db)
+    await ensure_user_exists(db, current_user.uid, current_user.email)
     try:
-        new_count = await sync_from_gmail(current_user.uid, db)
+        new_count = await sync_from_gmail(current_user.uid, db, max_results=limit)
         return {"success": True, "newEmails": new_count}
     except Exception as e:
         logger.warning(f"Manual sync failed for {current_user.uid}: {e}")

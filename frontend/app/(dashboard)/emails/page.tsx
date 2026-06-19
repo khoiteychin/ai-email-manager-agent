@@ -146,7 +146,7 @@ function EmailsContent() {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const res = await emailsApi.sync();
+      const res = await emailsApi.sync(syncLimit);
       const newCount = res.data.newEmails ?? 0;
       if (newCount > 0) {
         toast.success(`✨ ${newCount} new email${newCount > 1 ? 's' : ''} synced!`);

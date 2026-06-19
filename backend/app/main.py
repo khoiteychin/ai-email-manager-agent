@@ -93,6 +93,7 @@ async def lifespan(app: FastAPI):
                                 existing_gmail_ids = set(result.scalars().all())
 
                             added_gids = set()
+                            newly_added_emails = []
                             for data in emails_data:
                                 gid = data.get("gmail_id")
                                 if not gid or gid in existing_gmail_ids or gid in added_gids:
@@ -101,10 +102,18 @@ async def lifespan(app: FastAPI):
                                 email = Email(user_id=user_id, **data)
                                 db.add(email)
                                 added_gids.add(gid)
-                                await db.flush()
+                                newly_added_emails.append((email, data))
                                 new_count += 1
 
-                                # Classify with AI
+                            if new_count > 0:
+                                # Commit emails first — independent of AI classification
+                                await db.commit()
+                                await db.flush()
+                                logger.info(f"Auto-sync: {new_count} new email(s) stored for user {user_id}")
+
+                            # Run AI classification in separate savepoints to avoid
+                            # rolling back stored emails if AI call fails
+                            for email, data in newly_added_emails:
                                 try:
                                     import datetime
                                     received_time = datetime.datetime.now(datetime.timezone.utc)
@@ -135,12 +144,9 @@ async def lifespan(app: FastAPI):
                                         except Exception as tg_err:
                                             logger.warning(f"Auto-sync Telegram notify failed: {tg_err}")
                                 except Exception as ai_err:
+                                    # AI classify failed — rollback only classify changes, emails are already committed
                                     await db.rollback()
-                                    logger.warning(f"Auto-sync AI classify failed: {ai_err}")
-
-                            if new_count > 0:
-                                await db.commit()
-                                logger.info(f"Auto-sync: {new_count} new email(s) for user {user_id}")
+                                    logger.warning(f"Auto-sync AI classify failed for email '{data.get('subject')}': {ai_err}")
 
                         except Exception as user_err:
                             await db.rollback()

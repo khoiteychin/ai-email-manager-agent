@@ -1,7 +1,10 @@
+import logging
 from fastapi import Depends, HTTPException, status, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 from app.services.firebase_service import verify_firebase_token
+
+logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
 
@@ -40,16 +43,20 @@ async def get_current_user(
 
 
 async def ensure_user_exists(db, uid: str, email: str = "", name: str = None):
-    """Ensure a user exists in the database, creating a placeholder if necessary."""
-    from sqlalchemy import select
-    from app.models import User
-    
-    user_obj = await db.scalar(select(User).where(User.id == uid))
-    if not user_obj:
-        fallback_email = email or f"{uid}@placeholder.com"
-        user_obj = User(id=uid, email=fallback_email, name=name)
-        db.add(user_obj)
-        try:
-            await db.commit()
-        except Exception:
-            await db.rollback()
+    """Ensure a user exists in the database using an idempotent upsert."""
+    from sqlalchemy import text
+
+    fallback_email = email or f"{uid}@placeholder.com"
+    try:
+        await db.execute(
+            text("""
+                INSERT INTO users (id, email, name)
+                VALUES (:id, :email, :name)
+                ON CONFLICT (id) DO NOTHING
+            """),
+            {"id": uid, "email": fallback_email, "name": name},
+        )
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.warning(f"ensure_user_exists failed for uid={uid}: {e}")

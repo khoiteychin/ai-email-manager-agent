@@ -5,7 +5,7 @@ import asyncio
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text, text
+from sqlalchemy import select, text
 from app.database import get_db, AsyncSessionLocal
 from app.dependencies import get_current_user, AuthUser
 from app.config import settings

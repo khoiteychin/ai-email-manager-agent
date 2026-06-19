@@ -91,12 +91,14 @@ def mask_email(email_address: str) -> str:
 # ─── Intent Detection ─────────────────────────────────────────
 
 class IntentSchema(BaseModel):
-    intent: Literal["search_sender", "compose_draft", "send_email", "recent", "general"] = Field(default="general")
+    intent: Literal["search_sender", "search_date", "compose_draft", "send_email", "recent", "general"] = Field(default="general")
     sender_query: Optional[str] = None
     draft_to: Optional[str] = None
     draft_subject: Optional[str] = None
     draft_body_hint: Optional[str] = None
     reply_target_query: Optional[str] = None
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
 
 async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI, history: list = None) -> dict:
     """
@@ -313,10 +315,12 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         try:
             html_body = draft_content.get("body", "")
             if html_body:
-                html_escaped = html.escape(html_body)
+                # AI returns plain text body — wrap each paragraph in <p> tags
+                # and escape special HTML chars within each paragraph only
                 html_body_formatted = "".join(
-                    f"<p>{para.replace(chr(10), '<br/>')}</p>"
-                    for para in html_escaped.split("\n\n")
+                    f"<p>{html.escape(para).replace(chr(10), '<br/>')}</p>"
+                    for para in html_body.split("\n\n")
+                    if para.strip()
                 )
             else:
                 html_body_formatted = ""
@@ -630,10 +634,12 @@ Return a JSON object with:
     try:
         html_body = draft_content.get("body", "")
         if html_body:
-            html_escaped = html.escape(html_body)
+            # AI returns plain text body — wrap each paragraph in <p> tags
+            # and escape special HTML chars within each paragraph only
             html_body_formatted = "".join(
-                f"<p>{para.replace(chr(10), '<br/>')}</p>"
-                for para in html_escaped.split("\n\n")
+                f"<p>{html.escape(para).replace(chr(10), '<br/>')}</p>"
+                for para in html_body.split("\n\n")
+                if para.strip()
             )
         else:
             html_body_formatted = ""

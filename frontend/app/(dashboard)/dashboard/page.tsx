@@ -48,23 +48,24 @@ const CATEGORY_COLORS: Record<string, string> = {
   security: '#06b6d4',
 };
 
-function StatCard({ icon, label, value, sub, color, bgClass, href }: {
+function StatCard({ icon, label, value, sub, color, bgClass }: {
   icon: React.ReactNode;
   label: string;
   value: number | string;
   sub?: string;
   color: string;
   bgClass: string;
-  href?: string;
 }) {
-  const CardContent = (
-    <BrutalCard className="hover:-translate-y-1 hover:shadow-[var(--neo-shadow-hover)] cursor-pointer h-full transition-all" style={{ background: bgClass }}>
+  return (
+    <BrutalCard className="hover:-translate-y-1 hover:shadow-[var(--neo-shadow-hover)] cursor-pointer" style={{ background: bgClass }}>
       <BrutalCardContent className="p-5 pt-5">
         <div className="flex items-start justify-between mb-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center border-2 border-[var(--border)] bg-white">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center border-2 border-[var(--border)] bg-white"
+          >
             <span style={{ color }}>{icon}</span>
           </div>
-          {href && <ArrowUpRight className="w-5 h-5 text-[var(--border)]" />}
+          <ArrowUpRight className="w-5 h-5 text-[var(--border)]" />
         </div>
         <div className="text-3xl font-extrabold mb-1 text-[var(--border)]">{value}</div>
         <div className="text-sm font-bold text-[var(--border)]">{label}</div>
@@ -72,11 +73,6 @@ function StatCard({ icon, label, value, sub, color, bgClass, href }: {
       </BrutalCardContent>
     </BrutalCard>
   );
-
-  if (href) {
-    return <Link href={href} className="block h-full">{CardContent}</Link>;
-  }
-  return CardContent;
 }
 
 function DashboardSkeleton() {
@@ -162,7 +158,6 @@ export default function DashboardPage() {
               value={stats?.totalEmails ?? 0}
               color="#B45309"
               bgClass="#FFEDD5"
-              href="/emails"
             />
             <StatCard
               icon={<Inbox className="w-5 h-5" />}
@@ -171,7 +166,6 @@ export default function DashboardPage() {
               sub="Need your attention"
               color="#1D4ED8"
               bgClass="#DBEAFE"
-              href="/emails?isRead=false"
             />
             <StatCard
               icon={<TrendingUp className="w-5 h-5" />}
@@ -180,7 +174,6 @@ export default function DashboardPage() {
               sub="Active categories"
               color="#047857"
               bgClass="#D1FAE5"
-              href="/emails"
             />
             <StatCard
               icon={<Star className="w-5 h-5" />}
@@ -189,7 +182,6 @@ export default function DashboardPage() {
               sub="Quick access"
               color="#B45309"
               bgClass="#FEF3C7"
-              href="/emails?isStarred=true"
             />
           </div>
 
@@ -207,7 +199,7 @@ export default function DashboardPage() {
                   </BrutalButton>
                 </Link>
               </div>
-              
+
               <div className="space-y-3">
                 {stats?.recentActivity?.length === 0 ? (
                   <BrutalCard className="p-8 text-center bg-[var(--bg-secondary)]">

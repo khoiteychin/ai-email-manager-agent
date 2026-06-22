@@ -49,20 +49,10 @@ def oauth_popup_response(provider: str, success: bool, message: str = "") -> HTM
 
 
 @router.get("/connect")
-async def connect(response: Response, current_user: AuthUser = Depends(get_current_user)):
+async def connect(current_user: AuthUser = Depends(get_current_user)):
     """Redirect to Discord OAuth"""
     import secrets
     csrf_token = secrets.token_urlsafe(32)
-    
-    # Store CSRF state token in HTTP-only secure cookie
-    response.set_cookie(
-        key="discord_oauth_state",
-        value=csrf_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=600  # 10 minutes
-    )
     
     state_value = f"{csrf_token}:{current_user.uid}"
     url = (
@@ -74,7 +64,16 @@ async def connect(response: Response, current_user: AuthUser = Depends(get_curre
         f"&state={state_value}"
     )
     # Return a RedirectResponse with the set cookie
-    return RedirectResponse(url=url)
+    resp = RedirectResponse(url=url)
+    resp.set_cookie(
+        key="discord_oauth_state",
+        value=csrf_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=600  # 10 minutes
+    )
+    return resp
 
 
 @router.get("/callback")
@@ -87,8 +86,11 @@ async def callback(request: Request, code: str, state: str, db: AsyncSession = D
         csrf_token, uid = parts[0], parts[1]
         
         cookie_csrf_token = request.cookies.get("discord_oauth_state")
+        logger.info(f"Discord Callback - All cookies: {request.cookies}")
+        logger.info(f"Discord Callback - Expected CSRF: {csrf_token}, Found: {cookie_csrf_token}")
+
         if not cookie_csrf_token or cookie_csrf_token != csrf_token:
-            return oauth_popup_response("discord", False, "CSRF validation failed")
+            return oauth_popup_response("discord", False, "CSRF validation failed. Vui lòng thử lại. (Cookie bị block bởi trình duyệt)")
 
         await ensure_user_exists(db, uid=uid)
 

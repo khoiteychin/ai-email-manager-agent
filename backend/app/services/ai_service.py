@@ -199,17 +199,18 @@ async def search_emails_fulltext(user_id: str, query: str, limit: int, db: Async
         return []
     ts_query_str = " & ".join(words)
     try:
-        result = await db.execute(
-            select(Email)
-            .where(
-                Email.user_id == user_id,
-                text("to_tsvector('english', COALESCE(subject, '') || ' ' || COALESCE(body_text, '')) @@ to_tsquery('english', :ts_query)"),
+        async with db.begin_nested():
+            result = await db.execute(
+                select(Email)
+                .where(
+                    Email.user_id == user_id,
+                    text("to_tsvector('english', COALESCE(subject, '') || ' ' || COALESCE(body_text, '')) @@ to_tsquery('english', :ts_query)"),
+                )
+                .params(ts_query=ts_query_str)
+                .order_by(Email.received_at.desc())
+                .limit(limit)
             )
-            .params(ts_query=ts_query_str)
-            .order_by(Email.received_at.desc())
-            .limit(limit)
-        )
-        return list(result.scalars().all())
+            return list(result.scalars().all())
     except Exception as e:
         logger.warning(f"Full-text search failed: {e}. Falling back to ILIKE.")
         pattern = f"%{cleaned[:100]}%"

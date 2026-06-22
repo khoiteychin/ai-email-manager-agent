@@ -159,6 +159,7 @@ export default function DashboardPage() {
               icon={<Mail className="w-5 h-5" />}
               label="Total Emails"
               value={stats?.totalEmails ?? 0}
+              sub="All time"
               color="#B45309"
               bgClass="#FFEDD5"
               href="/emails"

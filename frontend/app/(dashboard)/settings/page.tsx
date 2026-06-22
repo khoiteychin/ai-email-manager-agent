@@ -178,6 +178,17 @@ function DiscordPanel({
                     <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                       <p className="font-medium text-yellow-500 mb-1">Link your Channel ID via Discord Bot</p>
                       <p className="mb-2">1. Add <strong>ktcbot</strong> to your server.</p>
+                      <div className="mb-3">
+                        <a 
+                          href="https://discord.com/api/oauth2/authorize?client_id=1491464406733684888&permissions=8&scope=bot" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-semibold rounded-md transition-colors"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          Add Bot to Server
+                        </a>
+                      </div>
                       <p className="mb-2">2. Type <strong>@ktcbot Xin chào</strong> in the channel where you want to receive notifications.</p>
                       <p>3. The bot will automatically link that channel to your account!</p>
                     </div>

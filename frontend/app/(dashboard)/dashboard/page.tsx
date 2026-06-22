@@ -48,15 +48,16 @@ const CATEGORY_COLORS: Record<string, string> = {
   security: '#06b6d4',
 };
 
-function StatCard({ icon, label, value, sub, color, bgClass }: {
+function StatCard({ icon, label, value, sub, color, bgClass, href }: {
   icon: React.ReactNode;
   label: string;
   value: number | string;
   sub?: string;
   color: string;
   bgClass: string;
+  href?: string;
 }) {
-  return (
+  const content = (
     <BrutalCard className="hover:-translate-y-1 hover:shadow-[var(--neo-shadow-hover)] cursor-pointer" style={{ background: bgClass }}>
       <BrutalCardContent className="p-5 pt-5">
         <div className="flex items-start justify-between mb-3">
@@ -65,7 +66,7 @@ function StatCard({ icon, label, value, sub, color, bgClass }: {
           >
             <span style={{ color }}>{icon}</span>
           </div>
-          <ArrowUpRight className="w-5 h-5 text-[var(--border)]" />
+          {href && <ArrowUpRight className="w-5 h-5 text-[var(--border)]" />}
         </div>
         <div className="text-3xl font-extrabold mb-1 text-[var(--border)]">{value}</div>
         <div className="text-sm font-bold text-[var(--border)]">{label}</div>
@@ -73,6 +74,8 @@ function StatCard({ icon, label, value, sub, color, bgClass }: {
       </BrutalCardContent>
     </BrutalCard>
   );
+
+  return href ? <Link href={href} className="block">{content}</Link> : content;
 }
 
 function DashboardSkeleton() {
@@ -158,6 +161,7 @@ export default function DashboardPage() {
               value={stats?.totalEmails ?? 0}
               color="#B45309"
               bgClass="#FFEDD5"
+              href="/emails"
             />
             <StatCard
               icon={<Inbox className="w-5 h-5" />}
@@ -166,6 +170,7 @@ export default function DashboardPage() {
               sub="Need your attention"
               color="#1D4ED8"
               bgClass="#DBEAFE"
+              href="/emails"
             />
             <StatCard
               icon={<TrendingUp className="w-5 h-5" />}
@@ -174,6 +179,7 @@ export default function DashboardPage() {
               sub="Active categories"
               color="#047857"
               bgClass="#D1FAE5"
+              href="/emails"
             />
             <StatCard
               icon={<Star className="w-5 h-5" />}
@@ -182,6 +188,7 @@ export default function DashboardPage() {
               sub="Quick access"
               color="#B45309"
               bgClass="#FEF3C7"
+              href="/emails"
             />
           </div>
 

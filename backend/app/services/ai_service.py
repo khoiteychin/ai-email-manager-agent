@@ -871,36 +871,36 @@ async def search_similar_emails(
     logger.info(f"Audit: Semantic search triggered for user {user_id}")
     vector_str = f"[{','.join(str(x) for x in embedding)}]"
     try:
-        # Removed begin_nested() since this is a pure SELECT query
-        rows = await db.execute(
-            text("""SELECT e.id FROM emails e
-                   JOIN email_embeddings ee ON e.id = ee.email_id
-                   WHERE e.user_id = :user_id
-                   AND (ee.embedding <=> :embedding::vector) < :threshold
-                   ORDER BY ee.embedding <=> :embedding::vector
-                   LIMIT :limit"""),
-            {"user_id": user_id, "embedding": vector_str, "limit": limit, "threshold": RAG_DISTANCE_THRESHOLD},
-        )
-        email_ids = [row[0] for row in rows.fetchall()]
-        if not email_ids:
-            # RAG-3: Retry with wider threshold 0.6 if no results found at 0.4
+        async with db.begin_nested():
             rows = await db.execute(
                 text("""SELECT e.id FROM emails e
                        JOIN email_embeddings ee ON e.id = ee.email_id
                        WHERE e.user_id = :user_id
-                       AND (ee.embedding <=> :embedding::vector) < 0.6
+                       AND (ee.embedding <=> :embedding::vector) < :threshold
                        ORDER BY ee.embedding <=> :embedding::vector
                        LIMIT :limit"""),
-                {"user_id": user_id, "embedding": vector_str, "limit": limit},
+                {"user_id": user_id, "embedding": vector_str, "limit": limit, "threshold": RAG_DISTANCE_THRESHOLD},
             )
             email_ids = [row[0] for row in rows.fetchall()]
             if not email_ids:
-                return []
-        result = await db.execute(
-            select(Email).where(Email.id.in_(email_ids), Email.user_id == user_id)
-        )
-        emails_by_id = {e.id: e for e in result.scalars().all()}
-        return [emails_by_id[eid] for eid in email_ids if eid in emails_by_id]
+                # RAG-3: Retry with wider threshold 0.6 if no results found at 0.4
+                rows = await db.execute(
+                    text("""SELECT e.id FROM emails e
+                           JOIN email_embeddings ee ON e.id = ee.email_id
+                           WHERE e.user_id = :user_id
+                           AND (ee.embedding <=> :embedding::vector) < 0.6
+                           ORDER BY ee.embedding <=> :embedding::vector
+                           LIMIT :limit"""),
+                    {"user_id": user_id, "embedding": vector_str, "limit": limit},
+                )
+                email_ids = [row[0] for row in rows.fetchall()]
+                if not email_ids:
+                    return []
+            result = await db.execute(
+                select(Email).where(Email.id.in_(email_ids), Email.user_id == user_id)
+            )
+            emails_by_id = {e.id: e for e in result.scalars().all()}
+            return [emails_by_id[eid] for eid in email_ids if eid in emails_by_id]
     except Exception as e:
         logger.error(f"Semantic search failed: {e}")
         return []

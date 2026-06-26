@@ -131,6 +131,7 @@ IMPORTANT RULES:
 1. If the message references a previous email from conversation history (e.g. "email đó", "that email", "email trên", "email 1", "email vừa rồi"), extract the sender name from history into reply_to_sender_name AND set reply_target_query.
 2. If the user says "reply to [name]" or "gửi cho [name]" where [name] is just a person's name (not an email address), set draft_to to that name - it will be resolved to an email address later.
 3. If draft_to is already a valid email address (contains @), keep it as-is.
+4. If the user mentions a company, service, or domain name as the source of the email to reply to (e.g. "email github", "email google", "email từ github", "email mới github"), extract that name into BOTH reply_target_query AND reply_to_sender_name. This is a COMPOSE intent, not a search intent.
 
 Return JSON with:
 {{
@@ -142,7 +143,7 @@ Return JSON with:
   "draft_subject": "email subject if explicitly mentioned, otherwise null",
   "draft_body_hint": "brief description of what the email should say, otherwise null",
   "reply_target_query": "extracted search query or reference if the user is replying to a specific email from history or by description (e.g. 'email from Khanh Do about meeting', 'email 1', 'that email'), otherwise null",
-  "reply_to_sender_name": "if the user refers to a previous email by position or pronoun (e.g. 'email đó', 'email trên', 'that email', 'email 1'), extract the SENDER NAME from the conversation history, otherwise null"
+  "reply_to_sender_name": "sender name/company to search for — set this when user mentions a sender (person or company like 'github', 'google') in a reply/compose context, otherwise null"
 }}
 
 Examples:
@@ -152,6 +153,9 @@ Examples:
 - "send email to john@gmail.com saying hello" -> intent: "send_email", draft_to: "john@gmail.com", draft_body_hint: "hello"
 - "reply to the email from Khanh Do about confirmation saying ok" -> intent: "compose_draft", reply_target_query: "email from Khanh Do about confirmation", draft_body_hint: "ok", reply_to_sender_name: "Khanh Do"
 - "trả lời email của Nguyễn Văn A ngày 13 tháng 6 nói tôi đồng ý" -> intent: "compose_draft", reply_target_query: "email của Nguyễn Văn A ngày 13 tháng 6", draft_body_hint: "tôi đồng ý", reply_to_sender_name: "Nguyễn Văn A"
+- "tạo draft trả lời email mới github là ok" -> intent: "compose_draft", reply_target_query: "email từ github", reply_to_sender_name: "github", draft_body_hint: "ok"
+- "reply to the latest email from github saying I agree" -> intent: "compose_draft", reply_target_query: "email from github", reply_to_sender_name: "github", draft_body_hint: "I agree"
+- "trả lời email google support nói cảm ơn" -> intent: "compose_draft", reply_target_query: "email từ google support", reply_to_sender_name: "google", draft_body_hint: "cảm ơn"
 - history shows "Email 1. From: John (john@co.com) Subject: Project Update", user says "trả lời email đó nói tôi đồng ý" -> intent: "compose_draft", reply_target_query: "email from John about Project Update", reply_to_sender_name: "John", draft_body_hint: "tôi đồng ý"
 - history shows "Email 1. From: Alice Subject: Invoice", user says "reply to that email" -> intent: "compose_draft", reply_target_query: "email from Alice about Invoice", reply_to_sender_name: "Alice"
 - "what are my recent emails?" -> intent: "recent"
@@ -335,26 +339,45 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         # ── Step 1: Find the target email to reply to ──────────
         if reply_target_query:
             try:
-                # Try semantic search first
+                # 1a. Semantic (vector) search — works well when email has an embedding
                 query_embedding = await embed_text(reply_target_query, user_id)
                 emails = await search_similar_emails(user_id, query_embedding, 1, db)
                 if emails:
                     target_email = emails[0]
-                # Fallback: if reply_to_sender_name provided, search by sender name
+                    logger.info(f"Reply target found via semantic search: '{target_email.subject}'")
+
+                # 1b. Sender name from intent detection
                 if not target_email and reply_to_sender_name:
                     sender_emails = await search_emails_by_sender(user_id, reply_to_sender_name, 1, db)
                     if sender_emails:
                         target_email = sender_emails[0]
+                        logger.info(f"Reply target found via sender name '{reply_to_sender_name}': '{target_email.subject}'")
+
+                # 1c. Sender search using the full reply_target_query as a keyword
+                # Catches cases like "email github", "email google", "email từ microsoft"
+                if not target_email:
+                    sender_emails = await search_emails_by_sender(user_id, reply_target_query, 1, db)
+                    if sender_emails:
+                        target_email = sender_emails[0]
+                        logger.info(f"Reply target found via query sender search '{reply_target_query}': '{target_email.subject}'")
+
+                # 1d. Full-text keyword search — last resort when no embedding exists yet
+                if not target_email:
+                    ft_emails = await search_emails_fulltext(user_id, reply_target_query, 1, db)
+                    if ft_emails:
+                        target_email = ft_emails[0]
+                        logger.info(f"Reply target found via fulltext search '{reply_target_query}': '{target_email.subject}'")
+
             except Exception as search_err:
                 logger.warning(f"Failed to find target email for reply: {search_err}")
 
-        # ── Step 2: Also try to find by sender name alone if no draft_to resolved yet
-        # (covers case: user says "gửi email cho Nguyễn Văn A" → look up their email)
-        if not target_email and reply_to_sender_name and not draft_to:
+        # ── Step 2: sender-name-only lookup (covers "gửi email cho Nguyễn Văn A")
+        if not target_email and reply_to_sender_name:
             try:
                 sender_emails = await search_emails_by_sender(user_id, reply_to_sender_name, 1, db)
                 if sender_emails:
                     target_email = sender_emails[0]
+                    logger.info(f"Reply target found via standalone sender lookup '{reply_to_sender_name}'")
             except Exception as e:
                 logger.warning(f"Sender name lookup failed: {e}")
 

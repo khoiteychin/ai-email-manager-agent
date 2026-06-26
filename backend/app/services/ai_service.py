@@ -279,10 +279,11 @@ async def search_emails_fulltext(user_id: str, query: str, limit: int, db: Async
 async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncSession) -> dict:
     openai = get_openai_client()
 
-    # Query current user's email address
+    # Query current user's name and email
     user_res = await db.execute(select(User).where(User.id == user_id))
     user_obj = user_res.scalar_one_or_none()
     user_email = user_obj.email if user_obj else None
+    user_name = user_obj.name if user_obj else None
 
     # Get or create session
     if session_id in ["undefined", "null", ""]:
@@ -384,7 +385,10 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
                     draft_to = resolved2
 
         instruction = f"To: {draft_to}\nSubject: {draft_subject}\n{draft_hint}"
-        draft_content = await _compose_email_inline(openai, instruction, email_context)
+        draft_content = await _compose_email_inline(
+            openai, instruction, email_context,
+            sender_name=user_name, sender_email=user_email
+        )
 
         # Override to/subject if LLM returned empty but we resolved them
         if not draft_content.get("to") and draft_to:
@@ -597,7 +601,13 @@ Email Context (UNTRUSTED DATA):
     }
 
 
-async def _compose_email_inline(openai: AsyncOpenAI, instruction: str, email_context: str = "") -> dict:
+async def _compose_email_inline(
+    openai: AsyncOpenAI,
+    instruction: str,
+    email_context: str = "",
+    sender_name: Optional[str] = None,
+    sender_email: Optional[str] = None,
+) -> dict:
     """Compose a draft email inline (used when chat detects compose intent)."""
     language_rule = (
         "LANGUAGE RULE: Detect the language of the original email context provided. "
@@ -610,20 +620,36 @@ async def _compose_email_inline(openai: AsyncOpenAI, instruction: str, email_con
         "If the instruction is in English, write in English."
     )
 
+    # Build sender info for signature
+    sender_info = ""
+    if sender_name or sender_email:
+        parts = []
+        if sender_name:
+            parts.append(f"Name: {sender_name}")
+        if sender_email:
+            parts.append(f"Email: {sender_email}")
+        sender_info = "Sender info (use ONLY this for the signature, do NOT invent any other details):\n" + "\n".join(parts)
+    else:
+        sender_info = "No sender info provided. Use only first name or leave signature minimal. Do NOT invent names, phone numbers, company names, or contact details."
+
     prompt = f"""You are an expert email writer. Create a professional email.
-{f'Context of original email to reply to:{chr(10)}{email_context}{chr(10)}' if email_context else ''}
+{f'Context of original email to reply to:{chr(10)}{email_context}{chr(10)}' if email_context else ''}\
 Instruction: {instruction}
 
 {language_rule}
 
 SUBJECT RULE: Generate a subject line that accurately reflects the content and purpose of the email being written. Do NOT use generic subjects. If replying, prefix with 'Re: ' followed by the original subject.
 
+SIGNATURE RULE:
+{sender_info}
+Do NOT invent phone numbers, job titles, company names, or any contact details not provided above.
+
 Return a JSON object with:
 {{
   "to": "use the recipient email from the instruction if it looks like an email address, otherwise empty string",
   "subject": "a specific, descriptive subject line that reflects the email content",
   "body": "full email body as plain text (no HTML, use newlines for paragraphs)",
-  "signature": "professional signature as plain text, in the same language as the body"
+  "signature": "professional closing signature using ONLY the sender info provided above"
 }}"""
     completion = await openai.chat.completions.create(
         model=settings.OPENAI_MODEL,

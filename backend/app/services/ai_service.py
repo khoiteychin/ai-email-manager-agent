@@ -118,9 +118,10 @@ async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI, history
     history_str = ""
     if history:
         # Include last 8 messages for better follow-up context awareness
+        # Use 800 chars per message so numbered email lists (Email 10: ...) don't get cut off
         recent_history = history[-8:]
-        history_str = "Recent conversation history (use this to understand references like 'that email', 'email đó', 'email trên'):" + "\n" + "\n".join(
-            f"{m.role}: {m.content[:300]}" for m in recent_history
+        history_str = "Recent conversation history (use this to understand references like 'that email', 'email đó', 'email trên', 'email 10'):" + "\n" + "\n".join(
+            f"{m.role}: {m.content[:800]}" for m in recent_history
         ) + "\n\n"
 
     prompt = f"""{history_str}Analyze this user message about emails and return a JSON object.
@@ -158,6 +159,8 @@ Examples:
 - "trả lời email google support nói cảm ơn" -> intent: "compose_draft", reply_target_query: "email từ google support", reply_to_sender_name: "google", draft_body_hint: "cảm ơn"
 - history shows "Email 1. From: John (john@co.com) Subject: Project Update", user says "trả lời email đó nói tôi đồng ý" -> intent: "compose_draft", reply_target_query: "email from John about Project Update", reply_to_sender_name: "John", draft_body_hint: "tôi đồng ý"
 - history shows "Email 1. From: Alice Subject: Invoice", user says "reply to that email" -> intent: "compose_draft", reply_target_query: "email from Alice about Invoice", reply_to_sender_name: "Alice"
+- history shows "Email 10: Thông báo về bài tập mới 'Bài tập 2 - Bộ lọc, biến đổi Fourier'. Nhận ngày 10/6/2026", user says "tạo draft trả lời email 10" -> intent: "compose_draft", reply_target_query: "email bài tập 2 bộ lọc biến đổi Fourier", draft_body_hint: "reply"
+- history shows "Email 3: Liên quan đến việc kiểm tra chức năng hiển thị ngày giờ của bot Discord", user says "trả lời email 3 nói ok" -> intent: "compose_draft", reply_target_query: "email kiểm tra chức năng hiển thị ngày giờ Discord", draft_body_hint: "ok"
 - "what are my recent emails?" -> intent: "recent"
 - "hiển thị các email mới nhất" -> intent: "recent"
 - "có email nào mới nhận hôm nay không" -> intent: "recent"
@@ -324,6 +327,36 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
     intent_data = await detect_intent(user_id, message, openai, history=intent_history)
     intent = intent_data.get("intent", "general")
 
+    # ── Pre-resolve numbered email references (e.g. "email 10") ─
+    # If the user references an email by its position number in the listed results,
+    # look up the email ID directly from the most recent assistant sources.
+    # This bypasses unreliable semantic search for positional references.
+    _positional_email: Optional[Email] = None
+    positional_match = re.search(r'\bemail\s*(?:s[oố]\s*)?(\d+)\b', message, re.IGNORECASE)
+    if positional_match and intent in ("compose_draft", "send_email"):
+        pos = int(positional_match.group(1))
+        # Walk history backwards to find the latest assistant message with sources
+        for hm in reversed(intent_history):
+            if hm.role == "assistant" and hm.sources:
+                sources_list = hm.sources if isinstance(hm.sources, list) else []
+                if 1 <= pos <= len(sources_list):
+                    ref_source = sources_list[pos - 1]
+                    ref_email_id = ref_source.get("id")
+                    if ref_email_id:
+                        try:
+                            em_res = await db.execute(
+                                select(Email).where(Email.id == ref_email_id, Email.user_id == user_id)
+                            )
+                            _positional_email = em_res.scalar_one_or_none()
+                            if _positional_email:
+                                logger.info(
+                                    f"Positional email resolved: pos={pos} -> "
+                                    f"'{_positional_email.subject}' ({_positional_email.sender_email})"
+                                )
+                        except Exception as pe:
+                            logger.warning(f"Positional email lookup failed: {pe}")
+                break
+
     # ── Handle compose/send intents ───────────────────────────
     if intent in ("compose_draft", "send_email"):
         draft_to = intent_data.get("draft_to") or ""
@@ -336,8 +369,14 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         target_email = None
         sources = []
 
+        # ── Step 0: Use positional email if already resolved ───
+        if _positional_email:
+            target_email = _positional_email
+            logger.info(f"Using positional email directly: '{target_email.subject}'")
+
         # ── Step 1: Find the target email to reply to ──────────
-        if reply_target_query:
+        # (skipped if Step 0 already found a positional match)
+        if not target_email and reply_target_query:
             try:
                 # 1a. Semantic (vector) search — works well when email has an embedding
                 query_embedding = await embed_text(reply_target_query, user_id)

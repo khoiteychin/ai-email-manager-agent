@@ -11,6 +11,7 @@ from app.models import Email, User
 from app.utils.limiter import limiter
 import app.services.gmail_service as gmail_service
 import app.services.ai_service as ai_service
+from app.utils.notification_helper import send_notifications_for_email
 
 router = APIRouter(prefix="/emails", tags=["Emails"])
 logger = logging.getLogger(__name__)
@@ -23,18 +24,12 @@ async def _classify_in_background(email_id: str, subject: str, body_text: str, u
         try:
             result = await ai_service.classify_and_summarize(email_id, subject, body_text, db)
             
-            # Send Discord notification
+            # Send notifications
             if result:
                 email_res = await db.execute(select(Email).where(Email.id == email_id))
                 email = email_res.scalar_one_or_none()
                 if email:
-                    from app.routers.discord import send_discord_notification
-                    from app.services.ai_service import format_discord_notification
-                    msg = format_discord_notification(email, result)
-                    try:
-                        await send_discord_notification(user_id, msg, db)
-                    except Exception as discord_err:
-                        logger.warning(f"Background Discord notify failed: {discord_err}")
+                    await send_notifications_for_email(user_id, email, result, db)
                 
         except Exception as e:
             logger.error(f"Background classify failed for {email_id}: {e}")

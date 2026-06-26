@@ -2,6 +2,7 @@ import logging
 from fastapi import Depends, HTTPException, status, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
+from sqlalchemy import text
 from app.services.firebase_service import verify_firebase_token
 
 logger = logging.getLogger(__name__)
@@ -19,11 +20,7 @@ async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     token: Optional[str] = Query(None, description="Firebase ID token passed as query parameter")
 ) -> AuthUser:
-    raw_token = None
-    if credentials:
-        raw_token = credentials.credentials
-    elif token:
-        raw_token = token
+    raw_token = credentials.credentials if credentials else token
 
     if not raw_token:
         raise HTTPException(
@@ -44,7 +41,6 @@ async def get_current_user(
 
 async def ensure_user_exists(db, uid: str, email: str = "", name: str = None):
     """Ensure a user exists in the database using an idempotent upsert."""
-    from sqlalchemy import text
 
     fallback_email = email or f"{uid}@placeholder.com"
     try:

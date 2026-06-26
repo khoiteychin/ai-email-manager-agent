@@ -8,6 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.services.firebase_service import init_firebase
 from app.routers import emails, ai, gmail, labels, user, discord, telegram, drafts
+import asyncio
+import datetime
+from sqlalchemy import select
+from app.database import AsyncSessionLocal
+from app.models import GmailAccount, Email
+from app.services.gmail_service import fetch_emails_incremental, fetch_recent_emails
+from app.services.ai_service import classify_and_summarize
+from app.utils.notification_helper import send_notifications_for_email
 
 logging.basicConfig(
     level=logging.INFO if settings.ENVIRONMENT == "development" else logging.WARNING,
@@ -25,13 +33,10 @@ async def lifespan(app: FastAPI):
     
     # Start Discord Bot in the background
     from app.services.discord_bot import start_discord_bot
-    import asyncio
     asyncio.create_task(start_discord_bot())
 
     # Bug #1 fix: Auto-renew Gmail Watch every 12 hours to prevent expiry (watch lasts 7 days)
     async def _gmail_watch_renewal_loop():
-        import asyncio
-        from app.database import AsyncSessionLocal
         from app.services.gmail_service import renew_watch_for_all_users
         while True:
             await asyncio.sleep(12 * 60 * 60)  # Run every 12 hours
@@ -49,13 +54,6 @@ async def lifespan(app: FastAPI):
     # are not configured or fail. It fetches new emails for all connected
     # Gmail accounts and sends Discord/Telegram notifications.
     async def _auto_sync_loop():
-        import asyncio
-        from app.database import AsyncSessionLocal
-        from app.models import GmailAccount, Email
-        from app.services.gmail_service import fetch_emails_incremental, fetch_recent_emails
-        from app.services.ai_service import classify_and_summarize
-        from sqlalchemy import select
-
         # Wait 60s after startup before first run
         await asyncio.sleep(60)
 
@@ -115,7 +113,6 @@ async def lifespan(app: FastAPI):
                             # rolling back stored emails if AI call fails
                             for email, data in newly_added_emails:
                                 try:
-                                    import datetime
                                     received_time = datetime.datetime.now(datetime.timezone.utc)
                                     logger.info(f"Auto-sync: Email '{data.get('subject')}' received/synced at {received_time.isoformat()}")
 
@@ -127,22 +124,9 @@ async def lifespan(app: FastAPI):
                                     )
                                     # Send notifications
                                     if ai_result:
-                                        from app.services.ai_service import format_discord_notification
-                                        notification_msg = format_discord_notification(email, ai_result)
-
-                                        try:
-                                            from app.routers.discord import send_discord_notification
-                                            await send_discord_notification(user_id, notification_msg, db)
-                                            notified_time = datetime.datetime.now(datetime.timezone.utc)
-                                            logger.info(f"Auto-sync: Discord notified for Email '{data.get('subject')}' at {notified_time.isoformat()}. Delay: {(notified_time - received_time).total_seconds()}s")
-                                        except Exception as discord_err:
-                                            logger.warning(f"Auto-sync Discord notify failed: {discord_err}")
-
-                                        try:
-                                            from app.routers.telegram import send_telegram_notification
-                                            await send_telegram_notification(user_id, notification_msg, db)
-                                        except Exception as tg_err:
-                                            logger.warning(f"Auto-sync Telegram notify failed: {tg_err}")
+                                        await send_notifications_for_email(user_id, email, ai_result, db)
+                                        notified_time = datetime.datetime.now(datetime.timezone.utc)
+                                        logger.info(f"Auto-sync: Notified for Email '{data.get('subject')}' at {notified_time.isoformat()}. Delay: {(notified_time - received_time).total_seconds()}s")
                                 except Exception as ai_err:
                                     # AI classify failed — rollback only classify changes, emails are already committed
                                     await db.rollback()

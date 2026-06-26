@@ -15,10 +15,18 @@ async def get_stats(
 ):
     uid = current_user.uid
 
-    total = await db.scalar(select(func.count(Email.id)).where(Email.user_id == uid)) or 0
-    unread = await db.scalar(select(func.count(Email.id)).where(Email.user_id == uid, Email.is_read == False)) or 0
-    starred = await db.scalar(select(func.count(Email.id)).where(Email.user_id == uid, Email.is_starred == True)) or 0
-    high_priority = await db.scalar(select(func.count(Email.id)).where(Email.user_id == uid, Email.priority == "high")) or 0
+    stats_query = select(
+        func.count(Email.id).label("total"),
+        func.count(Email.id).filter(Email.is_read == False).label("unread"),
+        func.count(Email.id).filter(Email.is_starred == True).label("starred"),
+        func.count(Email.id).filter(Email.priority == "high").label("high_priority")
+    ).where(Email.user_id == uid)
+    stats_row = (await db.execute(stats_query)).one()
+    total = stats_row.total or 0
+    unread = stats_row.unread or 0
+    starred = stats_row.starred or 0
+    high_priority = stats_row.high_priority or 0
+
 
     # Category breakdown as array (for frontend chart)
     rows = await db.execute(

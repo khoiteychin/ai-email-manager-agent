@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_current_user, AuthUser
 import app.services.gmail_service as gmail_service
+from app.utils.html_utils import format_text_to_html_paragraphs
 
 router = APIRouter(prefix="/drafts", tags=["Drafts"])
 logger = logging.getLogger(__name__)
@@ -23,10 +24,7 @@ async def update_draft(
 ):
     try:
         # Wrap draft body in paragraphs to match HTML requirements
-        html_body = "".join(
-            f"<p>{para.replace(chr(10), '<br/>')}</p>"
-            for para in body.body.split("\n\n")
-        )
+        html_body = format_text_to_html_paragraphs(body.body)
         await gmail_service.update_draft(
             user_id=current_user.uid,
             db=db,

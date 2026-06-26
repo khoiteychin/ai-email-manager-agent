@@ -7,6 +7,7 @@ from app.database import AsyncSessionLocal
 from app.models import DiscordAccount
 import app.services.ai_service as ai_service
 import app.services.gmail_service as gmail_service
+from app.utils.html_utils import format_text_to_html_paragraphs
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ class DraftView(discord.ui.View):
         if signature:
             full_body = f"{body}\n\n{signature}"
             
-        html_body = "".join(f"<p>{para.replace(chr(10), '<br/>')}</p>" for para in full_body.split("\n\n"))
+        html_body = format_text_to_html_paragraphs(full_body)
         
         try:
             async with AsyncSessionLocal() as db:

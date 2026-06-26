@@ -97,6 +97,8 @@ class IntentSchema(BaseModel):
     draft_subject: Optional[str] = None
     draft_body_hint: Optional[str] = None
     reply_target_query: Optional[str] = None
+    # Name of the sender to reply to, extracted from history context (e.g. "John", "Nguyễn Văn A")
+    reply_to_sender_name: Optional[str] = None
     date_from: Optional[str] = None
     date_to: Optional[str] = None
 
@@ -105,8 +107,9 @@ async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI, history
     Detect user intent from message, taking conversation history into account. Returns a dict with:
     - intent: "search_sender" | "search_date" | "compose_draft" | "send_email" | "recent" | "general"
     - sender_query: extracted sender name/email (for search_sender)
-    - draft_info: {to, subject, body_hint} (for compose_draft/send_email)
+    - draft_to: recipient email or name (for compose_draft/send_email)
     - reply_target_query: search query description if replying to a specific email
+    - reply_to_sender_name: sender name to look up from history (for context-based compose)
     - date_from: ISO date string for search_date start
     - date_to: ISO date string for search_date end
     """
@@ -114,13 +117,20 @@ async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI, history
     
     history_str = ""
     if history:
-        # Include last 4 messages for follow-up context
-        recent_history = history[-4:]
-        history_str = "Recent conversation history:\n" + "\n".join(f"{m.role}: {m.content[:200]}" for m in recent_history) + "\n\n"
+        # Include last 8 messages for better follow-up context awareness
+        recent_history = history[-8:]
+        history_str = "Recent conversation history (use this to understand references like 'that email', 'email đó', 'email trên'):" + "\n" + "\n".join(
+            f"{m.role}: {m.content[:300]}" for m in recent_history
+        ) + "\n\n"
 
     prompt = f"""{history_str}Analyze this user message about emails and return a JSON object.
 
 Message: "{message}"
+
+IMPORTANT RULES:
+1. If the message references a previous email from conversation history (e.g. "email đó", "that email", "email trên", "email 1", "email vừa rồi"), extract the sender name from history into reply_to_sender_name AND set reply_target_query.
+2. If the user says "reply to [name]" or "gửi cho [name]" where [name] is just a person's name (not an email address), set draft_to to that name - it will be resolved to an email address later.
+3. If draft_to is already a valid email address (contains @), keep it as-is.
 
 Return JSON with:
 {{
@@ -128,10 +138,11 @@ Return JSON with:
   "sender_query": "extracted person name or email address if searching by sender, otherwise null",
   "date_from": "extracted start date in ISO format (YYYY-MM-DD) if searching by date/time, otherwise null",
   "date_to": "extracted end date in ISO format (YYYY-MM-DD) if searching by date/time, otherwise null",
-  "draft_to": "recipient email or name if composing, otherwise null",
-  "draft_subject": "email subject if mentioned, otherwise null",
+  "draft_to": "recipient email address or person name if composing/replying, otherwise null",
+  "draft_subject": "email subject if explicitly mentioned, otherwise null",
   "draft_body_hint": "brief description of what the email should say, otherwise null",
-  "reply_target_query": "extracted search query or reference if the user is replying to a specific email (e.g. 'email from Khanh Do about meeting', 'email about invoice', 'email 1'), otherwise null"
+  "reply_target_query": "extracted search query or reference if the user is replying to a specific email from history or by description (e.g. 'email from Khanh Do about meeting', 'email 1', 'that email'), otherwise null",
+  "reply_to_sender_name": "if the user refers to a previous email by position or pronoun (e.g. 'email đó', 'email trên', 'that email', 'email 1'), extract the SENDER NAME from the conversation history, otherwise null"
 }}
 
 Examples:
@@ -139,13 +150,13 @@ Examples:
 - "show emails from john@gmail.com" -> intent: "search_sender", sender_query: "john@gmail.com"
 - "compose email to boss about meeting" -> intent: "compose_draft", draft_to: "boss", draft_subject: "Meeting", draft_body_hint: "about meeting"
 - "send email to john@gmail.com saying hello" -> intent: "send_email", draft_to: "john@gmail.com", draft_body_hint: "hello"
-- "reply to the email from Khanh Do about confirmation saying ok" -> intent: "compose_draft", reply_target_query: "email from Khanh Do about confirmation", draft_body_hint: "ok"
-- "trả lời email của Nguyễn Văn A ngày 13 tháng 6 nói tôi đồng ý" -> intent: "compose_draft", reply_target_query: "email của Nguyễn Văn A ngày 13 tháng 6", draft_body_hint: "tôi đồng ý"
+- "reply to the email from Khanh Do about confirmation saying ok" -> intent: "compose_draft", reply_target_query: "email from Khanh Do about confirmation", draft_body_hint: "ok", reply_to_sender_name: "Khanh Do"
+- "trả lời email của Nguyễn Văn A ngày 13 tháng 6 nói tôi đồng ý" -> intent: "compose_draft", reply_target_query: "email của Nguyễn Văn A ngày 13 tháng 6", draft_body_hint: "tôi đồng ý", reply_to_sender_name: "Nguyễn Văn A"
+- history shows "Email 1. From: John (john@co.com) Subject: Project Update", user says "trả lời email đó nói tôi đồng ý" -> intent: "compose_draft", reply_target_query: "email from John about Project Update", reply_to_sender_name: "John", draft_body_hint: "tôi đồng ý"
+- history shows "Email 1. From: Alice Subject: Invoice", user says "reply to that email" -> intent: "compose_draft", reply_target_query: "email from Alice about Invoice", reply_to_sender_name: "Alice"
 - "what are my recent emails?" -> intent: "recent"
 - "hiển thị các email mới nhất" -> intent: "recent"
 - "có email nào mới nhận hôm nay không" -> intent: "recent"
-- "show my latest emails" -> intent: "recent"
-- "hôm nay có thư nào mới không?" -> intent: "recent"
 - "find emails from last week" -> intent: "search_date", date_from: "2026-06-12", date_to: "2026-06-19"
 - "thư nhận được ngày 13/06" -> intent: "search_date", date_from: "2026-06-13", date_to: "2026-06-13"
 - "hi" -> intent: "general"
@@ -163,6 +174,43 @@ Examples:
     except Exception as e:
         logger.warning(f"Intent parsing failed: {e}")
         return {"intent": "general"}
+
+
+async def resolve_recipient_email(draft_to: str, user_id: str, db: AsyncSession) -> str:
+    """
+    Try to resolve a person's name to their actual email address by searching the user's inbox.
+    If draft_to already looks like an email address, return it unchanged.
+    Otherwise, search emails for a matching sender and return their sender_email.
+    """
+    if not draft_to:
+        return draft_to
+    # Already looks like an email address
+    if re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", draft_to.strip()):
+        return draft_to
+    # Search inbox for this person as a sender
+    try:
+        escaped = draft_to.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        result = await db.execute(
+            select(Email.sender, Email.sender_email)
+            .where(
+                Email.user_id == user_id,
+                or_(
+                    Email.sender.ilike(pattern),
+                    Email.sender_email.ilike(pattern),
+                )
+            )
+            .order_by(Email.received_at.desc())
+            .limit(1)
+        )
+        row = result.first()
+        if row and row.sender_email and re.match(r"[^@\s]+@[^@\s]+\.[^@\s]+", row.sender_email):
+            logger.info(f"Resolved recipient '{draft_to}' -> '{row.sender_email}' for user {user_id}")
+            return row.sender_email
+    except Exception as e:
+        logger.warning(f"resolve_recipient_email failed for '{draft_to}': {e}")
+    # Could not resolve — return original so draft still shows the name
+    return draft_to
 
 
 # ─── Hybrid Email Search ───────────────────────────────────────
@@ -257,17 +305,18 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
     db.add(user_msg)
     await db.flush()
 
-    # Get recent conversation history
+    # Get recent conversation history (16 messages = enough context for follow-up compose)
     result = await db.execute(
         select(AiChatMessage)
         .where(AiChatMessage.session_id == session.id)
         .order_by(AiChatMessage.created_at.desc())
-        .limit(8)
+        .limit(16)
     )
     history = list(reversed(result.scalars().all()))
 
     # ── Detect intent with conversation history ────────────────
-    intent_data = await detect_intent(user_id, message, openai, history=[m for m in history if m.id != user_msg.id])
+    intent_history = [m for m in history if m.id != user_msg.id]
+    intent_data = await detect_intent(user_id, message, openai, history=intent_history)
     intent = intent_data.get("intent", "general")
 
     # ── Handle compose/send intents ───────────────────────────
@@ -276,42 +325,73 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         draft_subject = intent_data.get("draft_subject") or ""
         draft_hint = intent_data.get("draft_body_hint") or message
         reply_target_query = intent_data.get("reply_target_query")
-        
+        reply_to_sender_name = intent_data.get("reply_to_sender_name")
+
         email_context = ""
         target_email = None
         sources = []
-        
+
+        # ── Step 1: Find the target email to reply to ──────────
         if reply_target_query:
             try:
+                # Try semantic search first
                 query_embedding = await embed_text(reply_target_query, user_id)
                 emails = await search_similar_emails(user_id, query_embedding, 1, db)
                 if emails:
                     target_email = emails[0]
-                    sources = [{"id": str(target_email.id), "subject": target_email.subject, "sender": target_email.sender}]
-                    email_context = (
-                        f"Original Email:\n"
-                        f"From: {target_email.sender} <{target_email.sender_email}>\n"
-                        f"Subject: {target_email.subject}\n"
-                        f"Date: {target_email.received_at}\n\n"
-                        f"{target_email.body_text or ''}"
-                    )
-                    if not draft_to:
-                        draft_to = target_email.sender_email or target_email.sender or ""
-                    if not draft_subject:
-                        draft_subject = f"Re: {target_email.subject}"
+                # Fallback: if reply_to_sender_name provided, search by sender name
+                if not target_email and reply_to_sender_name:
+                    sender_emails = await search_emails_by_sender(user_id, reply_to_sender_name, 1, db)
+                    if sender_emails:
+                        target_email = sender_emails[0]
             except Exception as search_err:
                 logger.warning(f"Failed to find target email for reply: {search_err}")
 
+        # ── Step 2: Also try to find by sender name alone if no draft_to resolved yet
+        # (covers case: user says "gửi email cho Nguyễn Văn A" → look up their email)
+        if not target_email and reply_to_sender_name and not draft_to:
+            try:
+                sender_emails = await search_emails_by_sender(user_id, reply_to_sender_name, 1, db)
+                if sender_emails:
+                    target_email = sender_emails[0]
+            except Exception as e:
+                logger.warning(f"Sender name lookup failed: {e}")
+
+        if target_email:
+            sources = [{"id": str(target_email.id), "subject": target_email.subject, "sender": target_email.sender}]
+            email_context = (
+                f"Original Email:\n"
+                f"From: {target_email.sender} <{target_email.sender_email}>\n"
+                f"Subject: {target_email.subject}\n"
+                f"Date: {target_email.received_at}\n\n"
+                f"{target_email.body_text or ''}"
+            )
+            if not draft_to:
+                draft_to = target_email.sender_email or target_email.sender or ""
+            if not draft_subject:
+                draft_subject = f"Re: {target_email.subject}"
+
+        # ── Step 3: Resolve recipient name → actual email address ──
+        # (covers case: user says "gửi cho Nguyễn Văn A" without an explicit email)
+        if draft_to and "@" not in draft_to:
+            resolved = await resolve_recipient_email(draft_to, user_id, db)
+            if resolved != draft_to:
+                draft_to = resolved
+            elif reply_to_sender_name:
+                # Try the extracted sender name as well
+                resolved2 = await resolve_recipient_email(reply_to_sender_name, user_id, db)
+                if resolved2 != reply_to_sender_name:
+                    draft_to = resolved2
+
         instruction = f"To: {draft_to}\nSubject: {draft_subject}\n{draft_hint}"
         draft_content = await _compose_email_inline(openai, instruction, email_context)
-        
-        # Override to/subject if we resolved them from the target email and LLM returned empty
-        if target_email:
-            if not draft_content.get("to"):
-                draft_content["to"] = draft_to
-            if not draft_content.get("subject"):
-                draft_content["subject"] = draft_subject
-        
+
+        # Override to/subject if LLM returned empty but we resolved them
+        if not draft_content.get("to") and draft_to:
+            draft_content["to"] = draft_to
+        if not draft_content.get("subject") and draft_subject:
+            draft_content["subject"] = draft_subject
+
         draft_id = None
         try:
             html_body = draft_content.get("body", "")
@@ -335,9 +415,9 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
             )
         except Exception as draft_err:
             logger.warning(f"Failed to pre-create Gmail draft: {draft_err}")
-            
+
         draft_content["id"] = draft_id
-        
+
         action = "send" if intent == "send_email" else "draft"
         reply = _format_draft_reply(draft_content, action)
 
@@ -519,19 +599,31 @@ Email Context (UNTRUSTED DATA):
 
 async def _compose_email_inline(openai: AsyncOpenAI, instruction: str, email_context: str = "") -> dict:
     """Compose a draft email inline (used when chat detects compose intent)."""
-    prompt = f"""You are an expert email writer. Create a professional email.
-{f'Context of original email to reply to:{chr(10)}{email_context}' if email_context else ''}
+    language_rule = (
+        "LANGUAGE RULE: Detect the language of the original email context provided. "
+        "If the original email is in English, write your reply in English. "
+        "If the original email is in Vietnamese, write your reply in Vietnamese. "
+        "If there is no original email context, detect the language of the Instruction field and write in that language."
+    ) if email_context else (
+        "LANGUAGE RULE: Detect the language of the Instruction field. "
+        "If the instruction is in Vietnamese, write the email in Vietnamese. "
+        "If the instruction is in English, write in English."
+    )
 
+    prompt = f"""You are an expert email writer. Create a professional email.
+{f'Context of original email to reply to:{chr(10)}{email_context}{chr(10)}' if email_context else ''}
 Instruction: {instruction}
 
-Write the email in the same language as the context if replying, otherwise in English. Keep a professional tone.
+{language_rule}
+
+SUBJECT RULE: Generate a subject line that accurately reflects the content and purpose of the email being written. Do NOT use generic subjects. If replying, prefix with 'Re: ' followed by the original subject.
 
 Return a JSON object with:
 {{
-  "to": "recipient email if mentioned, otherwise empty string",
-  "subject": "email subject line",
+  "to": "use the recipient email from the instruction if it looks like an email address, otherwise empty string",
+  "subject": "a specific, descriptive subject line that reflects the email content",
   "body": "full email body as plain text (no HTML, use newlines for paragraphs)",
-  "signature": "professional signature as plain text"
+  "signature": "professional signature as plain text, in the same language as the body"
 }}"""
     completion = await openai.chat.completions.create(
         model=settings.OPENAI_MODEL,

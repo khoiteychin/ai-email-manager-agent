@@ -132,7 +132,9 @@ IMPORTANT RULES:
 1. If the message references a previous email from conversation history (e.g. "email đó", "that email", "email trên", "email 1", "email vừa rồi"), extract the sender name from history into reply_to_sender_name AND set reply_target_query.
 2. If the user says "reply to [name]" or "gửi cho [name]" where [name] is just a person's name (not an email address), set draft_to to that name - it will be resolved to an email address later.
 3. If draft_to is already a valid email address (contains @), keep it as-is.
-4. If the user mentions a company, service, or domain name as the source of the email to reply to (e.g. "email github", "email google", "email từ github", "email mới github"), extract that name into BOTH reply_target_query AND reply_to_sender_name. This is a COMPOSE intent, not a search intent.
+4. CRITICAL DISTINCTION for company/service names (e.g. "github", "google"):
+   - If the message contains compose/reply keywords (trả lời, reply, tạo draft, respond, gửi lại, phản hồi, write back) AND a company name → intent is "compose_draft", set reply_target_query and reply_to_sender_name.
+   - If the message ONLY mentions viewing/checking/searching (kiểm tra, xem, tìm, show, check, search, hiển thị, có email từ) → intent is "search_sender", set sender_query to the company name. Do NOT set compose intent.
 
 Return JSON with:
 {{
@@ -161,6 +163,11 @@ Examples:
 - history shows "Email 1. From: Alice Subject: Invoice", user says "reply to that email" -> intent: "compose_draft", reply_target_query: "email from Alice about Invoice", reply_to_sender_name: "Alice"
 - history shows "Email 10: Thông báo về bài tập mới 'Bài tập 2 - Bộ lọc, biến đổi Fourier'. Nhận ngày 10/6/2026", user says "tạo draft trả lời email 10" -> intent: "compose_draft", reply_target_query: "email bài tập 2 bộ lọc biến đổi Fourier", draft_body_hint: "reply"
 - history shows "Email 3: Liên quan đến việc kiểm tra chức năng hiển thị ngày giờ của bot Discord", user says "trả lời email 3 nói ok" -> intent: "compose_draft", reply_target_query: "email kiểm tra chức năng hiển thị ngày giờ Discord", draft_body_hint: "ok"
+- "kiểm tra email từ github" -> intent: "search_sender", sender_query: "github"
+- "xem email từ google" -> intent: "search_sender", sender_query: "google"
+- "có email nào từ github không" -> intent: "search_sender", sender_query: "github"
+- "show emails from github" -> intent: "search_sender", sender_query: "github"
+- "tìm email từ microsoft" -> intent: "search_sender", sender_query: "microsoft"
 - "what are my recent emails?" -> intent: "recent"
 - "hiển thị các email mới nhất" -> intent: "recent"
 - "có email nào mới nhận hôm nay không" -> intent: "recent"

@@ -124,7 +124,13 @@ async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI, history
             f"{m.role}: {m.content[:800]}" for m in recent_history
         ) + "\n\n"
 
+    from datetime import datetime, timezone, timedelta
+    now_vn = datetime.now(timezone(timedelta(hours=7)))
+    today_str = now_vn.strftime("%Y-%m-%d")
+
     prompt = f"""{history_str}Analyze this user message about emails and return a JSON object.
+
+Current date (Vietnam time): {today_str}
 
 Message: "{message}"
 
@@ -135,6 +141,7 @@ IMPORTANT RULES:
 4. CRITICAL DISTINCTION for company/service names (e.g. "github", "google"):
    - If the message contains compose/reply keywords (trả lời, reply, tạo draft, respond, gửi lại, phản hồi, write back) AND a company name → intent is "compose_draft", set reply_target_query and reply_to_sender_name.
    - If the message ONLY mentions viewing/checking/searching (kiểm tra, xem, tìm, show, check, search, hiển thị, có email từ) → intent is "search_sender", set sender_query to the company name. Do NOT set compose intent.
+5. If searching by date (e.g. "last week", "hôm qua"), use the Current date provided above to calculate the actual ISO dates (YYYY-MM-DD) for date_from and date_to.
 
 Return JSON with:
 {{
@@ -171,8 +178,8 @@ Examples:
 - "what are my recent emails?" -> intent: "recent"
 - "hiển thị các email mới nhất" -> intent: "recent"
 - "có email nào mới nhận hôm nay không" -> intent: "recent"
-- "find emails from last week" -> intent: "search_date", date_from: "<last Monday ISO date>", date_to: "<last Sunday ISO date>"
-- "thư nhận được ngày 13/06" -> intent: "search_date", date_from: "<current year>-06-13", date_to: "<current year>-06-13"
+- "find emails from last week" -> intent: "search_date", date_from: "calculated start date of last week based on Current date", date_to: "calculated end date of last week based on Current date"
+- "thư nhận được ngày 13/06" -> intent: "search_date", date_from: "calculated current year-06-13", date_to: "calculated current year-06-13"
 - "hi" -> intent: "general"
 """
     try:

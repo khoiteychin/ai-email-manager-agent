@@ -178,8 +178,8 @@ Examples:
 - "what are my recent emails?" -> intent: "recent"
 - "hiển thị các email mới nhất" -> intent: "recent"
 - "có email nào mới nhận hôm nay không" -> intent: "recent"
-- "find emails from last week" -> intent: "search_date", date_from: "calculated start date of last week based on Current date", date_to: "calculated end date of last week based on Current date"
-- "thư nhận được ngày 13/06" -> intent: "search_date", date_from: "calculated current year-06-13", date_to: "calculated current year-06-13"
+- "find emails from last week" -> intent: "search_date", date_from: "2024-05-13", date_to: "2024-05-19" (Note: You MUST calculate the actual real dates based on the Current date)
+- "thư nhận được ngày 13/06" -> intent: "search_date", date_from: "2024-06-13", date_to: "2024-06-13" (Note: Calculate the correct current year)
 - "hi" -> intent: "general"
 """
     try:

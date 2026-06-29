@@ -91,8 +91,9 @@ def mask_email(email_address: str) -> str:
 # ─── Intent Detection ─────────────────────────────────────────
 
 class IntentSchema(BaseModel):
-    intent: Literal["search_sender", "search_date", "compose_draft", "send_email", "recent", "general"] = Field(default="general")
+    intent: Literal["search_sender", "search_date", "search_category", "compose_draft", "send_email", "recent", "general"] = Field(default="general")
     sender_query: Optional[str] = None
+    category_query: Optional[str] = None
     draft_to: Optional[str] = None
     draft_subject: Optional[str] = None
     draft_body_hint: Optional[str] = None
@@ -142,11 +143,13 @@ IMPORTANT RULES:
    - If the message contains compose/reply keywords (trả lời, reply, tạo draft, respond, gửi lại, phản hồi, write back) AND a company name → intent is "compose_draft", set reply_target_query and reply_to_sender_name.
    - If the message ONLY mentions viewing/checking/searching (kiểm tra, xem, tìm, show, check, search, hiển thị, có email từ) → intent is "search_sender", set sender_query to the company name. Do NOT set compose intent.
 5. If searching by date (e.g. "last week", "hôm qua"), use the Current date provided above to calculate the actual ISO dates (YYYY-MM-DD) for date_from and date_to.
+6. If the user asks for emails of a specific type or category (e.g. "công việc", "work", "quảng cáo", "promotion", "hóa đơn", "invoice"), set intent to "search_category" and extract the English category name into category_query (must be one of: work, personal, social, invoice, promotion, security).
 
 Return JSON with:
 {{
-  "intent": "search_sender" | "search_date" | "compose_draft" | "send_email" | "recent" | "general",
+  "intent": "search_sender" | "search_date" | "search_category" | "compose_draft" | "send_email" | "recent" | "general",
   "sender_query": "extracted person name or email address if searching by sender, otherwise null",
+  "category_query": "extracted category name (work, personal, social, invoice, promotion, security) if searching by category, otherwise null",
   "date_from": "extracted start date in ISO format (YYYY-MM-DD) if searching by date/time, otherwise null",
   "date_to": "extracted end date in ISO format (YYYY-MM-DD) if searching by date/time, otherwise null",
   "draft_to": "recipient email address or person name if composing/replying, otherwise null",
@@ -175,6 +178,9 @@ Examples:
 - "có email nào từ github không" -> intent: "search_sender", sender_query: "github"
 - "show emails from github" -> intent: "search_sender", sender_query: "github"
 - "tìm email từ microsoft" -> intent: "search_sender", sender_query: "microsoft"
+- "kiểm tra xem có ai gửi mail công việc không" -> intent: "search_category", category_query: "work"
+- "có email nào quảng cáo không" -> intent: "search_category", category_query: "promotion"
+- "show me invoice emails" -> intent: "search_category", category_query: "invoice"
 - "what are my recent emails?" -> intent: "recent"
 - "hiển thị các email mới nhất" -> intent: "recent"
 - "có email nào mới nhận hôm nay không" -> intent: "recent"
@@ -560,13 +566,23 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
             if not relevant_emails:
                 query_embedding = await embed_text(message, user_id)
                 relevant_emails = await search_similar_emails(user_id, query_embedding, 5, db)
+    elif intent == "search_category":
+        category_query = intent_data.get("category_query") or ""
+        if category_query:
+            result = await db.execute(
+                select(Email)
+                .where(Email.user_id == user_id, Email.category == category_query)
+                .order_by(Email.received_at.desc())
+                .limit(10)
+            )
+            relevant_emails = list(result.scalars().all())
     else:
         # General intent: use semantic search
         query_embedding = await embed_text(message, user_id)
         relevant_emails = await search_similar_emails(user_id, query_embedding, 5, db)
 
     # Fallback to Fulltext search if semantic search yields less than 2 emails
-    if intent not in ("recent", "search_date") and len(relevant_emails) < 2:
+    if intent not in ("recent", "search_date", "search_category") and len(relevant_emails) < 2:
         keyword = message[:200]
         if keyword:
             try:

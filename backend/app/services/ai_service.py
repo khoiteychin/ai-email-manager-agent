@@ -658,6 +658,8 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
                 f"⚠️ Không thể gửi email đến '{draft_to}'. "
                 "Chỉ có thể gửi/trả lời đến những địa chỉ đã từng liên lạc trong hộp thư."
             )
+
+        instruction = f"To: {draft_to}\nSubject: {draft_subject}\n{draft_hint}"
         draft_content = await _compose_email_inline(
             openai, instruction, email_context,
             sender_name=user_name, sender_email=user_email,

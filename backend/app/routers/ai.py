@@ -11,7 +11,7 @@ router = APIRouter(prefix="/ai", tags=["AI"])
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(..., max_length=10000)
+    message: str = Field(..., max_length=2000)  # Matches MAX_USER_MESSAGE_LENGTH in ai_service
     sessionId: Optional[str] = Field(None, max_length=255)
 
 
@@ -36,7 +36,10 @@ async def chat(
     current_user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await ai_service.chat(current_user.uid, body.message, body.sessionId, db)
+    try:
+        return await ai_service.chat(current_user.uid, body.message, body.sessionId, db)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
 
 
 @router.post("/draft")

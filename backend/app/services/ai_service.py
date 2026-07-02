@@ -18,6 +18,7 @@ RAG_DISTANCE_THRESHOLD = 0.4
 MAX_CONTEXT_TOKENS = 4000
 RATE_LIMIT_PER_MINUTE = 10
 MAX_EMAIL_BODY_LENGTH = 10000
+MAX_USER_MESSAGE_LENGTH = 2000   # Hard cap on user input to prevent token-stuffing
 # ───────────────────────────────────────────────────────────────
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,101 @@ def get_openai_client() -> AsyncOpenAI:
     if not client:
         client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
     return client
+
+# ─── Prompt Injection Detection ───────────────────────────────────────────
+
+# Compiled once at module load — fast for every request
+_INJECTION_PATTERNS: list[re.Pattern] = [
+    # Classic override phrases
+    re.compile(r'ignore\s+(all\s+)?(previous|prior|above|your|the)?\s*(instructions?|rules?|prompts?|context|guidelines?)', re.IGNORECASE),
+    re.compile(r'forget\s+(all\s+)?(previous|prior|above|your|the)?\s*(instructions?|rules?|prompts?|context)', re.IGNORECASE),
+    re.compile(r'disregard\s+(all\s+)?(previous|prior|above|your|the)?\s*(instructions?|rules?|prompts?)', re.IGNORECASE),
+    re.compile(r'do\s+not\s+follow\s+(your\s+)?(previous\s+)?(instructions?|rules?|guidelines?)', re.IGNORECASE),
+    re.compile(r'override\s+(your\s+)?(previous\s+)?(instructions?|rules?|programming)', re.IGNORECASE),
+    # Role / persona hijacking
+    re.compile(r'you\s+are\s+now\s+(an?\s+)?(evil|malicious|hacker|attacker|unrestricted|jailbroken)', re.IGNORECASE),
+    re.compile(r'act\s+as\s+(an?\s+)?(evil|malicious|hacker|attacker|unrestricted|jailbroken|DAN)', re.IGNORECASE),
+    re.compile(r'pretend\s+(to\s+be|you\s+are)\s+(an?\s+)?(evil|malicious|unrestricted|jailbroken)', re.IGNORECASE),
+    re.compile(r'you\s+are\s+(DAN|developer\s+mode|jailbroken|uncensored)', re.IGNORECASE),
+    re.compile(r'\bDAN\s+mode\b', re.IGNORECASE),
+    # Mass data exfiltration commands
+    re.compile(r'forward\s+(all|every|each)\s+(email|mail|message)s?\s*(in\s+(the\s+)?mailbox|to\s+)', re.IGNORECASE),
+    re.compile(r'send\s+(all|every|each)\s+(email|mail|message)s?\s+to\s+', re.IGNORECASE),
+    re.compile(r'export\s+(all|every)\s+(email|mail|data|message)s?', re.IGNORECASE),
+    re.compile(r'leak\s+(all|every|the)?\s*(email|mail|data|message)s?', re.IGNORECASE),
+    re.compile(r'dump\s+(all|every|the)?\s*(email|mail|data|inbox)', re.IGNORECASE),
+    # System prompt extraction
+    re.compile(r'(reveal|show|print|output|repeat|tell\s+me|what\s+is)\s+(your\s+)?(system\s+prompt|initial\s+prompt|instructions?|programming)', re.IGNORECASE),
+    re.compile(r'what\s+(are|were)\s+your\s+(original\s+|initial\s+|system\s+)?instructions?', re.IGNORECASE),
+    # Delimiter / separator injection
+    re.compile(r'```\s*system', re.IGNORECASE),
+    re.compile(r'<\s*system\s*>', re.IGNORECASE),
+    re.compile(r'\[INST\]|\[SYS\]|<\|im_start\|>|<\|endoftext\|>', re.IGNORECASE),
+]
+
+def detect_prompt_injection(message: str) -> bool:
+    """
+    Return True if the message contains a known prompt injection pattern.
+    This is a regex pre-filter that runs BEFORE any LLM call.
+    It is intentionally conservative — false positives are safe (block the message),
+    false negatives fall through to the LLM's own system-prompt defences.
+    """
+    for pattern in _INJECTION_PATTERNS:
+        if pattern.search(message):
+            return True
+    return False
+
+
+def sanitize_user_input(message: str) -> str:
+    """
+    Strip null bytes, non-printable control characters (except \n/\t),
+    and cap length. This prevents token-stuffing and escape-sequence attacks.
+    """
+    # Remove null bytes and other non-printable ASCII control chars (keep \t and \n)
+    cleaned = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', message)
+    # Truncate to hard max length
+    if len(cleaned) > MAX_USER_MESSAGE_LENGTH:
+        cleaned = cleaned[:MAX_USER_MESSAGE_LENGTH]
+        logger.warning("User message truncated to MAX_USER_MESSAGE_LENGTH")
+    return cleaned
+
+
+async def is_recipient_allowed(recipient: str, user_id: str, db: AsyncSession) -> bool:
+    """
+    Return True only if the recipient email address appears in the user's
+    own email history (sent or received). This prevents data exfiltration
+    to arbitrary external addresses injected via prompt injection.
+
+    Addresses that are not real email addresses (e.g. just a name) are
+    allowed through so that the normal name-resolution flow can proceed.
+    """
+    if not recipient or "@" not in recipient:
+        return True   # Not a full email address — let name-resolution handle it
+
+    escaped = recipient.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
+    try:
+        result = await db.execute(
+            select(Email.id)
+            .where(
+                Email.user_id == user_id,
+                or_(
+                    Email.sender_email.ilike(pattern),
+                    Email.receiver.ilike(pattern),
+                )
+            )
+            .limit(1)
+        )
+        row = result.first()
+        allowed = row is not None
+        if not allowed:
+            logger.warning(
+                f"Security: recipient '{mask_email(recipient)}' not found in user {user_id} history — blocked"
+            )
+        return allowed
+    except Exception as e:
+        logger.warning(f"is_recipient_allowed DB check failed: {e}")
+        return False   # Fail-closed: deny if we can't verify
 
 # ─── Rate Limiting ─────────────────────────────────────────────
 _rate_limits = {}
@@ -102,6 +198,10 @@ class IntentSchema(BaseModel):
     reply_to_sender_name: Optional[str] = None
     date_from: Optional[str] = None
     date_to: Optional[str] = None
+    # Explicit target language for compose — set when user says e.g. "bằng tiếng Anh", "in English",
+    # "in Japanese", "viết tiếng Việt". Use BCP-47 / plain English name: "English", "Vietnamese",
+    # "Japanese", "French", etc. Leave null when no language is explicitly specified.
+    compose_language: Optional[str] = None
 
 async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI, history: list = None) -> dict:
     """
@@ -156,7 +256,8 @@ Return JSON with:
   "draft_subject": "email subject if explicitly mentioned, otherwise null",
   "draft_body_hint": "brief description of what the email should say, otherwise null",
   "reply_target_query": "extracted search query or reference if the user is replying to a specific email from history or by description (e.g. 'email from Khanh Do about meeting', 'email 1', 'that email'), otherwise null",
-  "reply_to_sender_name": "sender name/company to search for — set this when user mentions a sender (person or company like 'github', 'google') in a reply/compose context, otherwise null"
+  "reply_to_sender_name": "sender name/company to search for — set this when user mentions a sender (person or company like 'github', 'google') in a reply/compose context, otherwise null",
+  "compose_language": "the explicit target language for the email body when the user says things like 'bằng tiếng Anh', 'in English', 'in Japanese', 'viết tiếng Việt', 'en français'. Use the plain English name: 'English', 'Vietnamese', 'Japanese', 'French', etc. Set null when no language is explicitly mentioned."
 }}
 
 Examples:
@@ -187,6 +288,12 @@ Examples:
 - "find emails from last week" -> intent: "search_date", date_from: "2024-05-13", date_to: "2024-05-19" (Note: You MUST calculate the actual real dates based on the Current date)
 - "thư nhận được ngày 13/06" -> intent: "search_date", date_from: "2024-06-13", date_to: "2024-06-13" (Note: Calculate the correct current year)
 - "hi" -> intent: "general"
+- "viết email bằng tiếng Anh gửi khách hàng Nhật" -> intent: "compose_draft", draft_body_hint: "gửi khách hàng Nhật", compose_language: "English"
+- "compose email in English to Japanese customer" -> intent: "compose_draft", draft_body_hint: "to Japanese customer", compose_language: "English"
+- "viết thư tiếng Nhật cho khách" -> intent: "compose_draft", draft_body_hint: "cho khách", compose_language: "Japanese"
+- "viết email in English giới thiệu sản phẩm" -> intent: "compose_draft", draft_body_hint: "giới thiệu sản phẩm", compose_language: "English"
+- "draft a French email to the supplier" -> intent: "compose_draft", draft_body_hint: "to the supplier", compose_language: "French"
+- "soạn thư bằng tiếng Nhật xin lỗi khách" -> intent: "compose_draft", draft_body_hint: "xin lỗi khách", compose_language: "Japanese"
 """
     try:
         completion = await openai.chat.completions.create(
@@ -306,6 +413,22 @@ async def search_emails_fulltext(user_id: str, query: str, limit: int, db: Async
 async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncSession) -> dict:
     openai = get_openai_client()
 
+    # ─────────────────────────────────────────────────────────────────────
+    # SECURITY LAYER 1 — Sanitize & detect prompt injection BEFORE any
+    # DB query or LLM call. Fail fast and loud on suspicious input.
+    # ─────────────────────────────────────────────────────────────────────
+    message = sanitize_user_input(message)
+
+    if detect_prompt_injection(message):
+        logger.warning(
+            f"Security: Prompt injection attempt detected from user {user_id}. "
+            f"Message (truncated): {message[:200]}"
+        )
+        raise PermissionError(
+            "⚠️ Tôi không thể xử lý yêu cầu này. Tin nhắn có chứa nội dung vi phạm chính sách bảo mật."
+        )
+    # ─────────────────────────────────────────────────────────────────────
+
     # Query current user's name and email
     user_res = await db.execute(select(User).where(User.id == user_id))
     user_obj = user_res.scalar_one_or_none()
@@ -347,35 +470,72 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
     intent_data = await detect_intent(user_id, message, openai, history=intent_history)
     intent = intent_data.get("intent", "general")
 
-    # ── Pre-resolve numbered email references (e.g. "email 10") ─
-    # If the user references an email by its position number in the listed results,
-    # look up the email ID directly from the most recent assistant sources.
-    # This bypasses unreliable semantic search for positional references.
+    # ── Pre-resolve positional/deictic email references ──────────
+    # Handles both numbered refs ("email 1", "email 10") and deictic refs
+    # ("mail đó", "email đó", "that email", "this email", "email trên", "email vừa rồi").
+    # Resolves directly from the most recent assistant message's sources,
+    # bypassing unreliable semantic search for these reference types.
     _positional_email: Optional[Email] = None
-    positional_match = re.search(r'\bemail\s*(?:s[oố]\s*)?(\d+)\b', message, re.IGNORECASE)
-    if positional_match and intent in ("compose_draft", "send_email"):
-        pos = int(positional_match.group(1))
-        # Walk history backwards to find the latest assistant message with sources
-        for hm in reversed(intent_history):
-            if hm.role == "assistant" and hm.sources:
-                sources_list = hm.sources if isinstance(hm.sources, list) else []
-                if 1 <= pos <= len(sources_list):
-                    ref_source = sources_list[pos - 1]
-                    ref_email_id = ref_source.get("id")
-                    if ref_email_id:
-                        try:
-                            em_res = await db.execute(
-                                select(Email).where(Email.id == ref_email_id, Email.user_id == user_id)
-                            )
-                            _positional_email = em_res.scalar_one_or_none()
-                            if _positional_email:
-                                logger.info(
-                                    f"Positional email resolved: pos={pos} -> "
-                                    f"'{_positional_email.subject}' ({_positional_email.sender_email})"
+
+    # Pattern 1: numbered reference — "email 1", "email số 3", "mail 10"
+    positional_match = re.search(r'\b(?:email|mail)\s*(?:s[oố]\s*)?(\d+)\b', message, re.IGNORECASE)
+
+    # Pattern 2: deictic reference — "mail đó", "email đó", "that email", "this email",
+    #            "email trên", "email vừa rồi", "mail vừa", "email này"
+    _DEICTIC_PATTERN = re.compile(
+        r'\b(?:'
+        r'(?:email|mail)\s*(?:đó|này|trên|vừa(?:\s+rồi)?|kia)|'
+        r'(?:that|this|the)\s+(?:email|mail|one)'
+        r')\b',
+        re.IGNORECASE,
+    )
+    deictic_match = _DEICTIC_PATTERN.search(message)
+
+    if intent in ("compose_draft", "send_email"):
+        if positional_match:
+            pos = int(positional_match.group(1))
+            for hm in reversed(intent_history):
+                if hm.role == "assistant" and hm.sources:
+                    sources_list = hm.sources if isinstance(hm.sources, list) else []
+                    if 1 <= pos <= len(sources_list):
+                        ref_email_id = sources_list[pos - 1].get("id")
+                        if ref_email_id:
+                            try:
+                                em_res = await db.execute(
+                                    select(Email).where(Email.id == ref_email_id, Email.user_id == user_id)
                                 )
-                        except Exception as pe:
-                            logger.warning(f"Positional email lookup failed: {pe}")
-                break
+                                _positional_email = em_res.scalar_one_or_none()
+                                if _positional_email:
+                                    logger.info(
+                                        f"Positional email resolved: pos={pos} -> "
+                                        f"'{_positional_email.subject}' ({_positional_email.sender_email})"
+                                    )
+                            except Exception as pe:
+                                logger.warning(f"Positional email lookup failed: {pe}")
+                    break
+
+        elif deictic_match and not positional_match:
+            # Deictic reference: resolve to the FIRST source of the most recent
+            # assistant message that carried sources (i.e. the email the bot just talked about).
+            for hm in reversed(intent_history):
+                if hm.role == "assistant" and hm.sources:
+                    sources_list = hm.sources if isinstance(hm.sources, list) else []
+                    if sources_list:
+                        ref_email_id = sources_list[0].get("id")
+                        if ref_email_id:
+                            try:
+                                em_res = await db.execute(
+                                    select(Email).where(Email.id == ref_email_id, Email.user_id == user_id)
+                                )
+                                _positional_email = em_res.scalar_one_or_none()
+                                if _positional_email:
+                                    logger.info(
+                                        f"Deictic email resolved ('{deictic_match.group()}') -> "
+                                        f"'{_positional_email.subject}' ({_positional_email.sender_email})"
+                                    )
+                            except Exception as de:
+                                logger.warning(f"Deictic email lookup failed: {de}")
+                    break
 
     # ── Handle compose/send intents ───────────────────────────
     if intent in ("compose_draft", "send_email"):
@@ -384,6 +544,7 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         draft_hint = intent_data.get("draft_body_hint") or message
         reply_target_query = intent_data.get("reply_target_query")
         reply_to_sender_name = intent_data.get("reply_to_sender_name")
+        compose_language = intent_data.get("compose_language")  # Explicit target language if specified
 
         email_context = ""
         target_email = None
@@ -395,15 +556,31 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
             logger.info(f"Using positional email directly: '{target_email.subject}'")
 
         # ── Step 1: Find the target email to reply to ──────────
-        # (skipped if Step 0 already found a positional match)
+        # (skipped if Step 0 already found a positional/deictic match)
         if not target_email and reply_target_query:
             try:
-                # 1a. Semantic (vector) search — works well when email has an embedding
+                # 1a. Semantic (vector) search — works well when email has an embedding.
+                # GUARD: if a sender name is known, reject the semantic result unless its
+                # sender field actually contains that name/email (prevents wrong-email matches
+                # like returning a Grab email when user meant TryHackMe).
                 query_embedding = await embed_text(reply_target_query, user_id)
                 emails = await search_similar_emails(user_id, query_embedding, 1, db)
                 if emails:
-                    target_email = emails[0]
-                    logger.info(f"Reply target found via semantic search: '{target_email.subject}'")
+                    candidate = emails[0]
+                    if reply_to_sender_name:
+                        sender_name_lower = reply_to_sender_name.lower()
+                        candidate_sender = ((candidate.sender or "") + " " + (candidate.sender_email or "")).lower()
+                        if sender_name_lower in candidate_sender:
+                            target_email = candidate
+                            logger.info(f"Reply target found via semantic search (sender verified): '{target_email.subject}'")
+                        else:
+                            logger.info(
+                                f"Semantic result '{candidate.subject}' (from '{candidate.sender}') "
+                                f"rejected — sender does not match '{reply_to_sender_name}'"
+                            )
+                    else:
+                        target_email = candidate
+                        logger.info(f"Reply target found via semantic search: '{target_email.subject}'")
 
                 # 1b. Sender name from intent detection
                 if not target_email and reply_to_sender_name:
@@ -466,10 +643,25 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
                 if resolved2 != reply_to_sender_name:
                     draft_to = resolved2
 
-        instruction = f"To: {draft_to}\nSubject: {draft_subject}\n{draft_hint}"
+        # ─────────────────────────────────────────────────────────────────
+        # SECURITY LAYER 2 — Recipient allowlist check.
+        # Block compose/send to any email address that does NOT already exist
+        # in this user's inbox or sent history. This is the last-resort guard
+        # against data exfiltration that bypasses the injection-pattern check.
+        # ─────────────────────────────────────────────────────────────────
+        if draft_to and not await is_recipient_allowed(draft_to, user_id, db):
+            logger.warning(
+                f"Security: Blocked compose/send to unrecognized recipient "
+                f"'{mask_email(draft_to)}' for user {user_id}"
+            )
+            raise PermissionError(
+                f"⚠️ Không thể gửi email đến '{draft_to}'. "
+                "Chỉ có thể gửi/trả lời đến những địa chỉ đã từng liên lạc trong hộp thư."
+            )
         draft_content = await _compose_email_inline(
             openai, instruction, email_context,
-            sender_name=user_name, sender_email=user_email
+            sender_name=user_name, sender_email=user_email,
+            target_language=compose_language,
         )
 
         # Override to/subject if LLM returned empty but we resolved them
@@ -702,18 +894,33 @@ async def _compose_email_inline(
     email_context: str = "",
     sender_name: Optional[str] = None,
     sender_email: Optional[str] = None,
+    target_language: Optional[str] = None,
 ) -> dict:
     """Compose a draft email inline (used when chat detects compose intent)."""
-    language_rule = (
-        "LANGUAGE RULE: Detect the language of the original email context provided. "
-        "If the original email is in English, write your reply in English. "
-        "If the original email is in Vietnamese, write your reply in Vietnamese. "
-        "If there is no original email context, detect the language of the Instruction field and write in that language."
-    ) if email_context else (
-        "LANGUAGE RULE: Detect the language of the Instruction field. "
-        "If the instruction is in Vietnamese, write the email in Vietnamese. "
-        "If the instruction is in English, write in English."
-    )
+
+    # If the user explicitly named a target language, that takes absolute precedence.
+    # Otherwise fall back to detecting from email context / instruction text.
+    if target_language:
+        language_rule = (
+            f"LANGUAGE OVERRIDE (MANDATORY): The user explicitly requested the email body "
+            f"to be written in **{target_language}**. "
+            f"You MUST write the full email body and subject in {target_language} regardless "
+            f"of the language used in the instruction or context. "
+            f"Only the signature may remain in the sender's native language if natural."
+        )
+    elif email_context:
+        language_rule = (
+            "LANGUAGE RULE: Detect the language of the original email context provided. "
+            "If the original email is in English, write your reply in English. "
+            "If the original email is in Vietnamese, write your reply in Vietnamese. "
+            "If there is no original email context, detect the language of the Instruction field and write in that language."
+        )
+    else:
+        language_rule = (
+            "LANGUAGE RULE: Detect the language of the Instruction field. "
+            "If the instruction is in Vietnamese, write the email in Vietnamese. "
+            "If the instruction is in English, write in English."
+        )
 
     # Build sender info for signature
     sender_info = ""

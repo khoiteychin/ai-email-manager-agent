@@ -285,6 +285,10 @@ Examples:
 - "what are my recent emails?" -> intent: "recent"
 - "hiển thị các email mới nhất" -> intent: "recent"
 - "có email nào mới nhận hôm nay không" -> intent: "recent"
+- "kiểm tra email" -> intent: "recent"
+- "check email" -> intent: "recent"
+- "kiểm tra hộp thư" -> intent: "recent"
+- "xem email" -> intent: "recent"
 - "find emails from last week" -> intent: "search_date", date_from: "2024-05-13", date_to: "2024-05-19" (Note: You MUST calculate the actual real dates based on the Current date)
 - "thư nhận được ngày 13/06" -> intent: "search_date", date_from: "2024-06-13", date_to: "2024-06-13" (Note: Calculate the correct current year)
 - "hi" -> intent: "general"

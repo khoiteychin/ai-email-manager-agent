@@ -481,8 +481,8 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
     # bypassing unreliable semantic search for these reference types.
     _positional_email: Optional[Email] = None
 
-    # Pattern 1: numbered reference — "email 1", "email số 3", "mail 10"
-    positional_match = re.search(r'\b(?:email|mail)\s*(?:s[oố]\s*)?(\d+)\b', message, re.IGNORECASE)
+    # Pattern 1: numbered reference — "email 1", "email số 3", "email thứ 3", "thứ 3", "số 3", "mail 10"
+    positional_match = re.search(r'\b(?:email|mail|thư|cái|số|thứ)\s*(?:s[oố]|th[uứ])?\s*(\d+)\b', message, re.IGNORECASE)
 
     # Pattern 2: deictic reference — "mail đó", "email đó", "that email", "this email",
     #            "email trên", "email vừa rồi", "mail vừa", "email này"

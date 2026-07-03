@@ -722,7 +722,15 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         # Override to/subject if LLM returned empty but we resolved them
         if not draft_content.get("to") and draft_to:
             draft_content["to"] = draft_to
-        if not draft_content.get("subject") and draft_subject:
+            
+        if target_email:
+            # For replies, we MUST force the subject to match the original email to preserve threading
+            orig_subject = target_email.subject or ""
+            if not orig_subject.lower().startswith("re:"):
+                draft_content["subject"] = f"Re: {orig_subject}"
+            else:
+                draft_content["subject"] = orig_subject
+        elif not draft_content.get("subject") and draft_subject:
             draft_content["subject"] = draft_subject
 
         draft_id = None

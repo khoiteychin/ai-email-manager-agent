@@ -173,11 +173,25 @@ async def on_message(message: discord.Message):
             # Let the user know we are thinking
             async with message.channel.typing():
                 try:
-                    logger.info(f"Discord bot: calling ai_service.chat() for user {user_id}")
+                    from app.models import AiChatSession
+                    from datetime import datetime, timezone, timedelta
+                    
+                    # Fetch latest session within last 24 hours to maintain conversation context
+                    yesterday = datetime.now(timezone.utc) - timedelta(hours=24)
+                    result_session = await db.execute(
+                        select(AiChatSession)
+                        .where(AiChatSession.user_id == user_id, AiChatSession.created_at >= yesterday)
+                        .order_by(AiChatSession.created_at.desc())
+                        .limit(1)
+                    )
+                    latest_session = result_session.scalar_one_or_none()
+                    session_id = str(latest_session.id) if latest_session else None
+                    
+                    logger.info(f"Discord bot: calling ai_service.chat() for user {user_id} with session {session_id}")
                     ai_response = await ai_service.chat(
                         user_id=user_id,
                         message=content,
-                        session_id=None,
+                        session_id=session_id,
                         db=db
                     )
                     reply_text = ai_response.get("message", {}).get("content", "Xin lỗi, tôi không thể xử lý yêu cầu lúc này.")

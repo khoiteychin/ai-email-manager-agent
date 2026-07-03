@@ -190,8 +190,8 @@ async def add_security_headers(request, call_next):
     response = await call_next(request)
     # Ngăn trình duyệt tự ý đoán kiểu tệp tin sai lệch (Chống MIME Sniffing)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    # Content Security Policy chống XSS
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;"
+    # Content Security Policy chống XSS (cho phép 'unsafe-inline' cho script để các popup OAuth có thể đóng và gửi message)
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;"
     # Ẩn thông tin framework backend khỏi attacker
     if "X-Powered-By" in response.headers:
         del response.headers["X-Powered-By"]

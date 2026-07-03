@@ -305,6 +305,11 @@ async def fetch_emails_incremental(user_id: str, db: AsyncSession) -> list[dict]
 
 
 def _parse_message(message: dict) -> Optional[dict]:
+    labels = message.get("labelIds", [])
+    if "DRAFT" in labels or "SENT" in labels:
+        logger.info(f"Skipping sync for draft/sent message {message.get('id')} with labels {labels}")
+        return None
+
     headers = {
         h["name"].lower(): h["value"]
         for h in message.get("payload", {}).get("headers", [])

@@ -563,11 +563,21 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         # (skipped if Step 0 already found a positional/deictic match)
         if not target_email and reply_target_query:
             try:
-                # 1a. Semantic (vector) search — works well when email has an embedding.
-                # GUARD: if a sender name is known, reject the semantic result unless its
-                # sender field actually contains that name/email (prevents wrong-email matches
-                # like returning a Grab email when user meant TryHackMe).
-                query_embedding = await embed_text(reply_target_query, user_id)
+                # If the user explicitly asks for the "latest" or "recent" email from a specific sender,
+                # prioritize chronological sender search over semantic search to avoid date-blind vector matches.
+                is_latest_requested = any(w in message.lower() for w in ["gần nhất", "mới nhất", "mới", "latest", "newest", "vừa rồi", "vừa nhận"])
+                if is_latest_requested and reply_to_sender_name:
+                    sender_emails = await search_emails_by_sender(user_id, reply_to_sender_name, 1, db)
+                    if sender_emails:
+                        target_email = sender_emails[0]
+                        logger.info(f"Reply target found via chronological sender search for latest '{reply_to_sender_name}': '{target_email.subject}'")
+
+                if not target_email:
+                    # 1a. Semantic (vector) search — works well when email has an embedding.
+                    # GUARD: if a sender name is known, reject the semantic result unless its
+                    # sender field actually contains that name/email (prevents wrong-email matches
+                    # like returning a Grab email when user meant TryHackMe).
+                    query_embedding = await embed_text(reply_target_query, user_id)
                 emails = await search_similar_emails(user_id, query_embedding, 1, db)
                 if emails:
                     candidate = emails[0]

@@ -193,6 +193,10 @@ async def on_message(message: discord.Message):
                         await message.reply(reply_text, view=view)
                     else:
                         await message.reply(reply_text)
+                except PermissionError as e:
+                    # Security rejection (e.g. prompt injection) — expected, not a bug
+                    logger.warning(f"Discord bot security rejection for user {user_id}: {e}")
+                    await message.reply(str(e))
                 except Exception as e:
                     # Bug #6 fix: log full traceback so we can see exactly what went wrong
                     logger.error(f"Discord bot AI error for user {user_id}: {e}", exc_info=True)

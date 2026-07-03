@@ -501,9 +501,48 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
             for hm in reversed(intent_history):
                 if hm.role == "assistant" and hm.sources:
                     sources_list = hm.sources if isinstance(hm.sources, list) else []
-                    if 1 <= pos <= len(sources_list):
+                    ref_email_id = None
+                    # 1. Try to find the item by number prefix (e.g., "4. ...")
+                    match_sub = re.search(
+                        rf'(?:^|\n|\b){pos}[\.\)\-\s]+.*?(?:"|\*\*|“|»|«)([^\n"\*”«»]+)',
+                        hm.content,
+                        re.IGNORECASE
+                    )
+                    if match_sub:
+                        subj = match_sub.group(1).strip()
+                        for src in sources_list:
+                            if subj.lower() in src.get("subject", "").lower():
+                                ref_email_id = src.get("id")
+                                break
+                                
+                    # 2. Try paragraph/line-based matching (for unnumbered lists)
+                    if not ref_email_id:
+                        paragraphs = [p.strip() for p in hm.content.split("\n") if p.strip()]
+                        email_lines = []
+                        for p in paragraphs:
+                            if any(w in p.lower() for w in ["tiêu đề", "subject", "ngày", "received", "từ", "gửi"]):
+                                email_lines.append(p)
+                        if 1 <= pos <= len(email_lines):
+                            target_line = email_lines[pos - 1]
+                            quote_match = re.search(r'(?:"|“|»|«|\|)([^"”«»\|]+)(?:"|”|\|)', target_line)
+                            if quote_match:
+                                subj = quote_match.group(1).strip()
+                                for src in sources_list:
+                                    if subj.lower() in src.get("subject", "").lower():
+                                        ref_email_id = src.get("id")
+                                        break
+                            if not ref_email_id:
+                                # Fallback: check if any source subject is in target line
+                                for src in sources_list:
+                                    if src.get("subject", "").lower() in target_line.lower():
+                                        ref_email_id = src.get("id")
+                                        break
+
+                    # 3. Direct index fallback (old logic)
+                    if not ref_email_id and 1 <= pos <= len(sources_list):
                         ref_email_id = sources_list[pos - 1].get("id")
-                        if ref_email_id:
+
+                    if ref_email_id:
                             try:
                                 em_res = await db.execute(
                                     select(Email).where(Email.id == ref_email_id, Email.user_id == user_id)

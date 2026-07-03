@@ -181,7 +181,6 @@ async def on_message(message: discord.Message):
             # Let the user know we are thinking
             async with message.channel.typing():
                 try:
-                    from app.models import AiChatSession
                     from datetime import datetime, timezone, timedelta
                     
                     # Fetch latest session within last 24 hours to maintain conversation context

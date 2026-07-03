@@ -170,6 +170,14 @@ async def on_message(message: discord.Message):
                 logger.info(f"Discord bot: auto-updated channel_id to {account.channel_id} for user {user_id}")
 
 
+            # Allow user to reset context
+            if content.lower() in ["clear", "reset", "new", "new chat", "xoá", "xóa"]:
+                new_session = AiChatSession(user_id=user_id, title="New Chat (Discord)")
+                db.add(new_session)
+                await db.commit()
+                await message.reply("🧹 Đã xóa ngữ cảnh cũ. Chúng ta bắt đầu một cuộc trò chuyện mới nhé!")
+                return
+
             # Let the user know we are thinking
             async with message.channel.typing():
                 try:

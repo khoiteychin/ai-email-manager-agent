@@ -3,6 +3,7 @@ import base64
 import json
 import re
 from typing import Optional
+from email.message import EmailMessage
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build

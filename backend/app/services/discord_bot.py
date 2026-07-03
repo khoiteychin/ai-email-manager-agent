@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.config import settings
 from app.database import AsyncSessionLocal
-from app.models import DiscordAccount
+from app.models import DiscordAccount, AiChatSession
 import app.services.ai_service as ai_service
 import app.services.gmail_service as gmail_service
 from app.utils.html_utils import format_text_to_html_paragraphs

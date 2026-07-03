@@ -50,9 +50,12 @@ async def generate_draft(
     current_user: AuthUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    return await ai_service.generate_draft(
-        current_user.uid, body.instruction, body.emailId, body.context, db
-    )
+    try:
+        return await ai_service.generate_draft(
+            current_user.uid, body.instruction, body.emailId, body.context, db
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
 
 
 @router.post("/send")
@@ -64,7 +67,12 @@ async def send_email(
     db: AsyncSession = Depends(get_db),
 ):
     # Assume that calling this endpoint implies user confirmation from the UI
-    return await ai_service.send_email(current_user.uid, body.to, body.subject, body.body, db, confirmed=True)
+    try:
+        return await ai_service.send_email(current_user.uid, body.to, body.subject, body.body, db, confirmed=True)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get("/sessions")

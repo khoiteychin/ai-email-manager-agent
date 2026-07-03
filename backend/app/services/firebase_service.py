@@ -36,10 +36,13 @@ def init_firebase():
     return _app
 
 
+import asyncio
+
 async def verify_firebase_token(token: str) -> Optional[dict]:
     """Verify Firebase ID token and return decoded payload."""
     try:
-        decoded = auth.verify_id_token(token)
+        loop = asyncio.get_event_loop()
+        decoded = await loop.run_in_executor(None, auth.verify_id_token, token)
         return {"uid": decoded["uid"], "email": decoded.get("email", "")}
     except Exception as e:
         logger.warning(f"Firebase token verification failed: {e}")

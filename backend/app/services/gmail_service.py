@@ -402,6 +402,74 @@ async def create_draft(user_id: str, db: AsyncSession, to: str, subject: str, bo
     return draft.get("id", "")
 
 
+async def create_reply_draft(
+    user_id: str,
+    db: AsyncSession,
+    to: str,
+    subject: str,
+    body: str,
+    original_gmail_id: str,
+    original_thread_id: str,
+) -> str:
+    """
+    Create a Gmail draft that is threaded to an existing email.
+    Sets In-Reply-To, References, and threadId so Gmail groups it in the same conversation.
+    """
+    service = await get_gmail_service(user_id, db)
+    if not service:
+        raise Exception("Gmail not connected")
+
+    result = await db.execute(select(GmailAccount).where(GmailAccount.user_id == user_id))
+    account = result.scalar_one_or_none()
+    from_email = account.email if account else "me"
+
+    # Fetch the Message-ID header of the original email for proper threading
+    original_message_id_header = None
+    original_references_header = None
+    try:
+        original_msg = service.users().messages().get(
+            userId="me",
+            id=original_gmail_id,
+            format="metadata",
+            metadataHeaders=["Message-ID", "References"],
+        ).execute()
+        headers = {
+            h["name"].lower(): h["value"]
+            for h in original_msg.get("payload", {}).get("headers", [])
+        }
+        original_message_id_header = headers.get("message-id")
+        original_references_header = headers.get("references")
+    except Exception as e:
+        logger.warning(f"Could not fetch original message headers for reply threading: {e}")
+
+    # Build the reply email with threading headers
+    from email.message import EmailMessage
+    msg = EmailMessage()
+    msg["From"] = from_email
+    msg["To"] = to
+    msg["Subject"] = subject if subject.startswith("Re:") else f"Re: {subject}"
+    if original_message_id_header:
+        msg["In-Reply-To"] = original_message_id_header
+        # References = existing chain + original message-id
+        refs = original_references_header or ""
+        msg["References"] = f"{refs} {original_message_id_header}".strip()
+    msg.set_content(body, subtype="html", charset="utf-8")
+
+    import base64
+    encoded = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+
+    draft = service.users().drafts().create(
+        userId="me",
+        body={
+            "message": {
+                "raw": encoded,
+                "threadId": original_thread_id,  # attach to existing thread
+            }
+        },
+    ).execute()
+    return draft.get("id", "")
+
+
 async def setup_watch(user_id: str, db: AsyncSession) -> None:
     if not settings.GMAIL_PUBSUB_TOPIC:
         logger.warning("GMAIL_PUBSUB_TOPIC not configured, skipping watch")
@@ -547,11 +615,36 @@ async def update_draft(user_id: str, db: AsyncSession, draft_id: str, to: str, s
     account = result.scalar_one_or_none()
     from_email = account.email if account else "me"
 
-    encoded = _prepare_raw_email(from_email, to, subject, body)
+    # Fetch existing draft to preserve thread headers
+    draft = service.users().drafts().get(userId="me", id=draft_id, format="metadata").execute()
+    message = draft.get("message", {})
+    original_thread_id = message.get("threadId")
+    
+    headers = message.get("payload", {}).get("headers", [])
+    in_reply_to = next((h["value"] for h in headers if h["name"].lower() == "in-reply-to"), None)
+    references = next((h["value"] for h in headers if h["name"].lower() == "references"), None)
+
+    msg = EmailMessage()
+    msg["To"] = to
+    msg["From"] = from_email
+    msg["Subject"] = subject
+    if in_reply_to:
+        msg["In-Reply-To"] = in_reply_to
+    if references:
+        msg["References"] = references
+        
+    msg.set_content(body, subtype="html", charset="utf-8")
+    import base64
+    encoded = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+
+    update_body = {"message": {"raw": encoded}}
+    if original_thread_id:
+        update_body["message"]["threadId"] = original_thread_id
+
     service.users().drafts().update(
         userId="me",
         id=draft_id,
-        body={"message": {"raw": encoded}},
+        body=update_body,
     ).execute()
 
 

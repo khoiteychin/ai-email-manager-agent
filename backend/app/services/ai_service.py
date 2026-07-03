@@ -686,13 +686,27 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
             else:
                 html_body_formatted = ""
             logger.info(f"Audit: Creating draft for user {user_id} to {mask_email(draft_content.get('to', ''))}")
-            draft_id = await gmail_service.create_draft(
-                user_id=user_id,
-                db=db,
-                to=draft_content.get("to", ""),
-                subject=draft_content.get("subject", ""),
-                body=html_body_formatted
-            )
+
+            # Use reply draft (threaded) when we have the original email, else create new
+            if target_email and target_email.gmail_id and target_email.thread_id:
+                draft_id = await gmail_service.create_reply_draft(
+                    user_id=user_id,
+                    db=db,
+                    to=draft_content.get("to", ""),
+                    subject=draft_content.get("subject", ""),
+                    body=html_body_formatted,
+                    original_gmail_id=target_email.gmail_id,
+                    original_thread_id=target_email.thread_id,
+                )
+                logger.info(f"Created reply draft (thread {target_email.thread_id}) for user {user_id}")
+            else:
+                draft_id = await gmail_service.create_draft(
+                    user_id=user_id,
+                    db=db,
+                    to=draft_content.get("to", ""),
+                    subject=draft_content.get("subject", ""),
+                    body=html_body_formatted
+                )
         except Exception as draft_err:
             logger.warning(f"Failed to pre-create Gmail draft: {draft_err}")
 
@@ -1003,18 +1017,30 @@ async def generate_draft(
     context: Optional[str],
     db: AsyncSession,
 ) -> dict:
+    # Security: sanitize and check for prompt injection in instruction field
+    instruction = sanitize_user_input(instruction)
+    if detect_prompt_injection(instruction):
+        logger.warning(
+            f"Security: Prompt injection attempt in generate_draft from user {user_id}. "
+            f"Instruction (truncated): {instruction[:200]}"
+        )
+        raise PermissionError(
+            "⚠️ Yêu cầu này không thể xử lý vì chứa nội dung vi phạm chính sách bảo mật."
+        )
+
     openai = get_openai_client()
     email_context = context or ""
+    email_obj = None  # keep reference for threading
 
     if email_id:
         result = await db.execute(
             select(Email).where(Email.id == email_id, Email.user_id == user_id)
         )
-        email = result.scalar_one_or_none()
-        if email:
+        email_obj = result.scalar_one_or_none()
+        if email_obj:
             email_context = (
-                f"Original email:\nFrom: {email.sender}\nSubject: {email.subject}\n\n"
-                f"{(email.body_text or '')[:1000]}"
+                f"Original email:\nFrom: {email_obj.sender}\nSubject: {email_obj.subject}\n\n"
+                f"{(email_obj.body_text or '')[:1000]}"
             )
 
     prompt = f"""You are an expert email writer. Create a professional email.
@@ -1049,13 +1075,8 @@ Return a JSON object with:
         draft_content = {"subject": "", "body": completion.choices[0].message.content or "", "to": ""}
 
     # Fallback to original email sender if 'to' is empty
-    if email_id and not draft_content.get("to"):
-        result = await db.execute(
-            select(Email).where(Email.id == email_id, Email.user_id == user_id)
-        )
-        email = result.scalar_one_or_none()
-        if email:
-            draft_content["to"] = email.sender_email or email.sender or ""
+    if email_id and not draft_content.get("to") and email_obj:
+        draft_content["to"] = email_obj.sender_email or email_obj.sender or ""
 
     draft_id = None
     try:
@@ -1072,13 +1093,27 @@ Return a JSON object with:
             html_body_formatted = ""
 
         logger.info(f"Audit: Creating draft via generate_draft for user {user_id} to {mask_email(draft_content.get('to', ''))}")
-        draft_id = await gmail_service.create_draft(
-            user_id=user_id,
-            db=db,
-            to=draft_content.get("to", ""),
-            subject=draft_content.get("subject", ""),
-            body=html_body_formatted
-        )
+
+        # Use reply draft (threaded) when we have the original email, else create new
+        if email_obj and email_obj.gmail_id and email_obj.thread_id:
+            draft_id = await gmail_service.create_reply_draft(
+                user_id=user_id,
+                db=db,
+                to=draft_content.get("to", ""),
+                subject=draft_content.get("subject", ""),
+                body=html_body_formatted,
+                original_gmail_id=email_obj.gmail_id,
+                original_thread_id=email_obj.thread_id,
+            )
+            logger.info(f"generate_draft: Created reply draft (thread {email_obj.thread_id}) for user {user_id}")
+        else:
+            draft_id = await gmail_service.create_draft(
+                user_id=user_id,
+                db=db,
+                to=draft_content.get("to", ""),
+                subject=draft_content.get("subject", ""),
+                body=html_body_formatted
+            )
     except Exception as e:
         logger.warning(f"Failed to pre-create Gmail draft: {e}")
 
@@ -1092,9 +1127,28 @@ async def send_email(user_id: str, to: str, subject: str, body: str, db: AsyncSe
     if not confirmed:
         logger.warning(f"Audit: Unauthorized email send attempt by user {user_id}")
         raise PermissionError("Sending email requires explicit confirmation.")
-        
+
+    # Security: sanitize subject and check for injection in body/subject
+    subject = sanitize_user_input(subject)
+    if detect_prompt_injection(subject) or detect_prompt_injection(body[:500]):
+        logger.warning(f"Security: Prompt injection attempt in send_email from user {user_id}")
+        raise PermissionError(
+            "⚠️ Yêu cầu này không thể xử lý vì chứa nội dung vi phạm chính sách bảo mật."
+        )
+
     if not re.match(r"[^@]+@[^@]+\.[^@]+", to):
         raise ValueError(f"Invalid recipient email address: {to}")
+
+    # Security: recipient allowlist — block sends to addresses not in user's email history
+    if not await is_recipient_allowed(to, user_id, db):
+        logger.warning(
+            f"Security: Blocked send_email to unrecognized recipient "
+            f"'{mask_email(to)}' for user {user_id}"
+        )
+        raise PermissionError(
+            f"⚠️ Không thể gửi email đến '{to}'. "
+            "Chỉ có thể gửi đến những địa chỉ đã từng liên lạc trong hộp thư."
+        )
 
     logger.info(f"Audit: User {user_id} sending email to {mask_email(to)}")
     await gmail_service.send_email(user_id, db, to, subject, body)

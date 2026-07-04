@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import discord
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -228,13 +229,21 @@ async def on_message(message: discord.Message):
 
 
 async def start_discord_bot():
-    """Start the discord bot in the background using the existing event loop."""
+    """Start the discord bot with exponential backoff reconnect on failure."""
     if not settings.DISCORD_BOT_TOKEN:
         logger.warning("DISCORD_BOT_TOKEN is not set. Discord bot will not start.")
         return
-        
-    try:
-        # Use start() instead of run() to avoid blocking the FastAPI event loop
-        await client.start(settings.DISCORD_BOT_TOKEN)
-    except Exception as e:
-        logger.error(f"Failed to start Discord bot: {e}")
+
+    retry_delay = 5  # seconds — starts at 5s, doubles each retry up to 5 minutes
+    while True:
+        try:
+            logger.info("Starting Discord bot...")
+            await client.start(settings.DISCORD_BOT_TOKEN)
+        except Exception as e:
+            logger.error(f"Discord bot crashed: {e}. Reconnecting in {retry_delay}s...")
+            await asyncio.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, 300)  # Exponential backoff, max 5 phút
+            # Reset client state before reconnecting
+            if not client.is_closed():
+                await client.close()
+

@@ -49,17 +49,6 @@ class DiscordAccount(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
-class TelegramAccount(Base):
-    __tablename__ = "telegram_accounts"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[str] = mapped_column(String(255), ForeignKey("users.id", ondelete="CASCADE"))
-    telegram_id: Mapped[int | None] = mapped_column()
-    username: Mapped[str | None] = mapped_column(String(255))
-    chat_id: Mapped[int | None] = mapped_column()
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
 
 class Email(Base):
     __tablename__ = "emails"

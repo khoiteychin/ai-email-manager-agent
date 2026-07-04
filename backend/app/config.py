@@ -30,9 +30,6 @@ class Settings(BaseSettings):
     DISCORD_REDIRECT_URI: str = "https://api.emailkhanh.freeddns.org/discord/callback"
     DISCORD_BOT_TOKEN: str = ""
 
-    # Telegram
-    TELEGRAM_BOT_TOKEN: str = ""
-    TELEGRAM_SECRET_TOKEN: str = ""
 
     # Secret key for encrypting sensitive fields in DB (e.g. Gmail tokens)
     ENCRYPTION_KEY: str = ""

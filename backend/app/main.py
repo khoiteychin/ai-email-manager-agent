@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.services.firebase_service import init_firebase
-from app.routers import emails, ai, gmail, labels, user, discord, telegram, drafts
+from app.routers import emails, ai, gmail, labels, user, discord, drafts
 import asyncio
 import datetime
 from sqlalchemy import select
@@ -206,7 +206,6 @@ app.include_router(gmail.router)
 app.include_router(labels.router)
 app.include_router(user.router)
 app.include_router(discord.router)
-app.include_router(telegram.router)
 app.include_router(drafts.router)
 
 

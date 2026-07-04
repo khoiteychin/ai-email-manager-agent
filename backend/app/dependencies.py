@@ -48,7 +48,11 @@ async def ensure_user_exists(db, uid: str, email: str = "", name: str = None):
             text("""
                 INSERT INTO users (id, email, name)
                 VALUES (:id, :email, :name)
-                ON CONFLICT (id) DO NOTHING
+                ON CONFLICT (id) DO UPDATE
+                  SET email      = CASE WHEN EXCLUDED.email != '' AND EXCLUDED.email IS NOT NULL
+                                        THEN EXCLUDED.email ELSE users.email END,
+                      name       = COALESCE(EXCLUDED.name, users.name),
+                      updated_at = NOW()
             """),
             {"id": uid, "email": fallback_email, "name": name},
         )

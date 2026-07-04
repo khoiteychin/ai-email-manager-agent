@@ -15,7 +15,7 @@ import tiktoken
 
 # ─── SECURITY SETTINGS ─────────────────────────────────────────
 RAG_DISTANCE_THRESHOLD = 0.4
-MAX_CONTEXT_TOKENS = 4000
+MAX_CONTEXT_TOKENS = 6000  # gpt-4o-mini context = 128k; 6k tokens an toàn cho 5–10 emails
 RATE_LIMIT_PER_MINUTE = 10
 MAX_EMAIL_BODY_LENGTH = 10000
 MAX_USER_MESSAGE_LENGTH = 2000   # Hard cap on user input to prevent token-stuffing
@@ -34,27 +34,41 @@ def get_openai_client() -> AsyncOpenAI:
 
 # Compiled once at module load — fast for every request
 _INJECTION_PATTERNS: list[re.Pattern] = [
-    # Classic override phrases
+    # Classic override phrases (English)
     re.compile(r'ignore\s+(all\s+)?(previous|prior|above|your|the)?\s*(instructions?|rules?|prompts?|context|guidelines?)', re.IGNORECASE),
     re.compile(r'forget\s+(all\s+)?(previous|prior|above|your|the)?\s*(instructions?|rules?|prompts?|context)', re.IGNORECASE),
     re.compile(r'disregard\s+(all\s+)?(previous|prior|above|your|the)?\s*(instructions?|rules?|prompts?)', re.IGNORECASE),
     re.compile(r'do\s+not\s+follow\s+(your\s+)?(previous\s+)?(instructions?|rules?|guidelines?)', re.IGNORECASE),
     re.compile(r'override\s+(your\s+)?(previous\s+)?(instructions?|rules?|programming)', re.IGNORECASE),
-    # Role / persona hijacking
+    # Classic override phrases (Vietnamese)
+    re.compile(r'(bỏ\s+qua|quên|xóa)\s+(tất\s+cả\s+)?(các\s+)?(chỉ\s+thị|hướng\s+dẫn|luật|quy\s+tắc|lệnh|yêu\s+cầu|prompt)\s+(trước|cũ|bên\s+trên)', re.IGNORECASE),
+    re.compile(r'(không|đừng)\s+(làm\s+theo|tuân\s+theo|quan\s+tâm)\s+(các\s+)?(chỉ\s+thị|hướng\s+dẫn|luật|quy\s+tắc|lệnh)', re.IGNORECASE),
+    re.compile(r'ghi\s+đè\s+(các\s+)?(chỉ\s+thị|hướng\s+dẫn|luật)', re.IGNORECASE),
+    
+    # Role / persona hijacking (English & Vietnamese)
     re.compile(r'you\s+are\s+now\s+(an?\s+)?(evil|malicious|hacker|attacker|unrestricted|jailbroken)', re.IGNORECASE),
     re.compile(r'act\s+as\s+(an?\s+)?(evil|malicious|hacker|attacker|unrestricted|jailbroken|DAN)', re.IGNORECASE),
     re.compile(r'pretend\s+(to\s+be|you\s+are)\s+(an?\s+)?(evil|malicious|unrestricted|jailbroken)', re.IGNORECASE),
     re.compile(r'you\s+are\s+(DAN|developer\s+mode|jailbroken|uncensored)', re.IGNORECASE),
     re.compile(r'\bDAN\s+mode\b', re.IGNORECASE),
-    # Mass data exfiltration commands
+    re.compile(r'(bây\s+giờ\s+)?(bạn|mày|ngươi)\s+là\s+(một\s+)?(hacker|kẻ\s+tấn\s+công|kẻ\s+xấu|ai\s+không\s+bị\s+kiểm\s+duyệt|người\s+dùng\s+nội\s+bộ)', re.IGNORECASE),
+    re.compile(r'(đóng\s+vai|giả\s+vờ\s+là|hoạt\s+động\s+như)\s+(một\s+)?(hacker|DAN|nhà\s+phát\s+triển|developer)', re.IGNORECASE),
+    
+    # Mass data exfiltration commands (English & Vietnamese)
     re.compile(r'forward\s+(all|every|each)\s+(email|mail|message)s?\s*(in\s+(the\s+)?mailbox|to\s+)', re.IGNORECASE),
     re.compile(r'send\s+(all|every|each)\s+(email|mail|message)s?\s+to\s+', re.IGNORECASE),
     re.compile(r'export\s+(all|every)\s+(email|mail|data|message)s?', re.IGNORECASE),
     re.compile(r'leak\s+(all|every|the)?\s*(email|mail|data|message)s?', re.IGNORECASE),
     re.compile(r'dump\s+(all|every|the)?\s*(email|mail|data|inbox)', re.IGNORECASE),
-    # System prompt extraction
+    re.compile(r'(chuyển\s+tiếp|gửi)\s+(tất\s+cả|toàn\s+bộ)\s+(email|mail|thư|tin\s+nhắn)\s+(cho|tới|đến)', re.IGNORECASE),
+    re.compile(r'(xuất|rò\s+rỉ|lấy)\s+(tất\s+cả|toàn\s+bộ)\s+(dữ\s+liệu|email|mail|thư)', re.IGNORECASE),
+    
+    # System prompt extraction (English & Vietnamese)
     re.compile(r'(reveal|show|print|output|repeat|tell\s+me|what\s+is)\s+(your\s+)?(system\s+prompt|initial\s+prompt|instructions?|programming)', re.IGNORECASE),
     re.compile(r'what\s+(are|were)\s+your\s+(original\s+|initial\s+|system\s+)?instructions?', re.IGNORECASE),
+    re.compile(r'(hiển\s+thị|tiết\s+lộ|in\s+ra|lặp\s+lại|cho\s+tôi\s+biết|nói\s+cho\s+tôi)\s+(prompt\s+hệ\s+thống|chỉ\s+thị\s+ban\s+đầu|lệnh\s+hệ\s+thống|hướng\s+dẫn\s+hệ\s+thống|system\s+prompt)', re.IGNORECASE),
+    re.compile(r'(chỉ\s+thị|hướng\s+dẫn|prompt)\s+(ban\s+đầu|hệ\s+thống|gốc)\s+của\s+(bạn|mày)\s+là\s+gì', re.IGNORECASE),
+    
     # Delimiter / separator injection
     re.compile(r'```\s*system', re.IGNORECASE),
     re.compile(r'<\s*system\s*>', re.IGNORECASE),
@@ -1370,7 +1384,12 @@ Return JSON with:
         except Exception as label_err:
             logger.warning(f"Failed to apply Gmail label for {email_id}: {label_err}")
 
-        text_for_embed = f"Subject: {subject}\nSummary: {formatted_summary}\nContent: {body_text}"
+        # Truncate trước khi embed: ưu tiên Subject + Summary, cắt bớt body nếu cần
+        # Giữ trong giới hạn 7000 tokens (safe margin dưới 8192 token limit của embedding model)
+        text_for_embed = truncate_to_budget(
+            f"Subject: {subject}\nSummary: {formatted_summary}\nContent: {body_text}",
+            budget=7000,
+        )
         try:
             embedding = await embed_text(text_for_embed)
             await store_embedding(email_id, embedding, db)
@@ -1387,10 +1406,13 @@ Return JSON with:
 
 async def embed_text(text: str, user_id: Optional[str] = None) -> list[float]:
     # Removed double rate limit check here as it is checked by caller (chat)
+    # Caller is responsible for truncating via truncate_to_budget() before calling this.
+    # We apply a final token-aware safety cap here as a last-resort guard.
     openai = get_openai_client()
+    safe_text = truncate_to_budget(text, budget=7000)  # 8192 token limit; 7000 = safe margin
     response = await openai.embeddings.create(
         model=settings.OPENAI_EMBEDDING_MODEL,
-        input=text[:8000],
+        input=safe_text,
     )
     return response.data[0].embedding
 

@@ -75,8 +75,12 @@ async def sync_from_gmail(user_id: str, db: AsyncSession, max_results: int = 50)
         )
         emails_to_classify = result.fetchall()
         for row in emails_to_classify:
-            asyncio.create_task(
+            task = asyncio.create_task(
                 _classify_in_background(row.id, row.subject or "", row.body_text or "", user_id)
+            )
+            # Fix #2: Track exceptions so they are not silently swallowed
+            task.add_done_callback(
+                lambda t: logger.error(f"Background classify task failed: {t.exception()}") if not t.cancelled() and t.exception() else None
             )
 
     return new_count
@@ -125,10 +129,12 @@ async def list_emails(
         query = query.where(Email.is_starred == isStarred)
         count_query = count_query.where(Email.is_starred == isStarred)
     if search:
+        # Fix #5: Escape LIKE special wildcards to prevent full-table-scan abuse
+        safe_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         search_filter = or_(
-            Email.subject.ilike(f"%{search}%"),
-            Email.sender.ilike(f"%{search}%"),
-            Email.body_text.ilike(f"%{search}%"),
+            Email.subject.ilike(f"%{safe_search}%"),
+            Email.sender.ilike(f"%{safe_search}%"),
+            Email.body_text.ilike(f"%{safe_search}%"),
         )
         query = query.where(search_filter)
         count_query = count_query.where(search_filter)

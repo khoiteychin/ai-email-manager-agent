@@ -53,19 +53,6 @@ CREATE TABLE IF NOT EXISTS public.discord_accounts (
   UNIQUE (user_id)
 );
 
--- ============================================================
--- telegram_accounts
--- ============================================================
-CREATE TABLE IF NOT EXISTS public.telegram_accounts (
-  id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id         VARCHAR(255) NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  telegram_id     BIGINT,
-  username        VARCHAR(255),
-  chat_id         BIGINT,
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE (user_id)
-);
 
 -- ============================================================
 -- user_integrations (used by existing frontend code)
@@ -73,7 +60,7 @@ CREATE TABLE IF NOT EXISTS public.telegram_accounts (
 CREATE TABLE IF NOT EXISTS public.user_integrations (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id     VARCHAR(255) NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  provider    VARCHAR(50) NOT NULL,  -- 'gmail', 'discord', 'telegram'
+  provider    VARCHAR(50) NOT NULL,  -- 'gmail', 'discord'
   updated_at  TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (user_id, provider)
 );
@@ -184,7 +171,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_session ON public.ai_chat_messag
 CREATE TABLE IF NOT EXISTS public.notifications (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id     VARCHAR(255) NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  platform    VARCHAR(50) NOT NULL,  -- 'discord', 'telegram'
+  platform    VARCHAR(50) NOT NULL,  -- 'discord'
   content     TEXT NOT NULL,
   status      VARCHAR(50) DEFAULT 'pending',  -- pending, sent, failed
   created_at  TIMESTAMPTZ DEFAULT NOW()

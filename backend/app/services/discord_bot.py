@@ -39,8 +39,12 @@ class EditDraftModal(discord.ui.Modal, title="Edit Email"):
         draft_id = self.draft.get("id")
         if draft_id:
             try:
+                html_body_formatted = "".join(
+                    f"<p>{para.replace(chr(10), '<br/>')}</p>"
+                    for para in new_body.split("\n\n")
+                )
                 async with AsyncSessionLocal() as db:
-                    await gmail_service.update_draft(self.user_id, db, draft_id, new_to, new_subject, new_body)
+                    await gmail_service.update_draft(self.user_id, db, draft_id, new_to, new_subject, html_body_formatted)
             except Exception as e:
                 logger.error(f"Failed to update Gmail draft: {e}", exc_info=True)
                 

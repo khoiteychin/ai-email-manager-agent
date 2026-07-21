@@ -7,7 +7,7 @@ from typing import Optional, Literal
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text, or_
+from sqlalchemy import select, text, or_, func
 from app.models import Email, AiChatSession, AiChatMessage, User
 from app.config import settings
 import app.services.gmail_service as gmail_service

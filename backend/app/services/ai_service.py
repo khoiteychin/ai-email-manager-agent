@@ -201,26 +201,25 @@ def mask_email(email_address: str) -> str:
 # ─── Intent Detection ─────────────────────────────────────────
 
 class IntentSchema(BaseModel):
-    intent: Literal["search_sender", "search_date", "search_category", "compose_draft", "send_email", "recent", "general"] = Field(default="general")
+    intent: Literal["search_sender", "search_date", "search_category", "compose_draft", "send_email", "recent", "count", "top_senders", "general"] = Field(default="general")
     sender_query: Optional[str] = None
     category_query: Optional[str] = None
     draft_to: Optional[str] = None
     draft_subject: Optional[str] = None
     draft_body_hint: Optional[str] = None
     reply_target_query: Optional[str] = None
-    # Name of the sender to reply to, extracted from history context (e.g. "John", "Nguyễn Văn A")
     reply_to_sender_name: Optional[str] = None
     date_from: Optional[str] = None
     date_to: Optional[str] = None
-    # Explicit target language for compose — set when user says e.g. "bằng tiếng Anh", "in English",
-    # "in Japanese", "viết tiếng Việt". Use BCP-47 / plain English name: "English", "Vietnamese",
-    # "Japanese", "French", etc. Leave null when no language is explicitly specified.
     compose_language: Optional[str] = None
+    is_read: Optional[bool] = None
+    is_starred: Optional[bool] = None
+    semantic_keyword: Optional[str] = None
 
 async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI, history: list = None) -> dict:
     """
     Detect user intent from message, taking conversation history into account. Returns a dict with:
-    - intent: "search_sender" | "search_date" | "compose_draft" | "send_email" | "recent" | "general"
+    - intent: "search_sender" | "search_date" | "search_category" | "compose_draft" | "send_email" | "recent" | "count" | "top_senders" | "general"
     - sender_query: extracted sender name/email (for search_sender)
     - draft_to: recipient email or name (for compose_draft/send_email)
     - reply_target_query: search query description if replying to a specific email
@@ -258,10 +257,16 @@ IMPORTANT RULES:
    - If the message ONLY mentions viewing/checking/searching (kiểm tra, xem, tìm, show, check, search, hiển thị, có email từ) → intent is "search_sender", set sender_query to the company name. Do NOT set compose intent.
 5. If searching by date (e.g. "last week", "hôm qua"), use the Current date provided above to calculate the actual ISO dates (YYYY-MM-DD) for date_from and date_to.
 6. If the user asks for emails of a specific type or category (e.g. "công việc", "work", "quảng cáo", "promotion", "hóa đơn", "invoice"), set intent to "search_category" and extract the English category name into category_query (must be one of: work, personal, social, invoice, promotion, security).
+7. If the user asks for the count, sum, or number of emails (e.g. "có bao nhiêu email...", "đếm email...", "bao nhiêu mail chưa đọc..."), set intent to "count".
+8. If the user asks about who emails them the most, or wants statistical info on top senders (e.g. "ai gửi thư nhiều nhất", "ai hay gửi mail cho tôi nhất"), set intent to "top_senders".
+9. Extacted filters:
+   - If user filters by read/unread (e.g. "chưa đọc", "unread"), set is_read to false. If "đã đọc", "read", set is_read to true.
+   - If user filters by star (e.g. "gắn sao", "quan trọng", "starred"), set is_starred to true.
+   - Set semantic_keyword to any subject/content keywords the user is searching for (e.g. "lỗi bảo mật", "thông báo họp").
 
 Return JSON with:
 {{
-  "intent": "search_sender" | "search_date" | "search_category" | "compose_draft" | "send_email" | "recent" | "general",
+  "intent": "search_sender" | "search_date" | "search_category" | "compose_draft" | "send_email" | "recent" | "count" | "top_senders" | "general",
   "sender_query": "extracted person name or email address if searching by sender, otherwise null",
   "category_query": "extracted category name (work, personal, social, invoice, promotion, security) if searching by category, otherwise null",
   "date_from": "extracted start date in ISO format (YYYY-MM-DD) if searching by date/time, otherwise null",
@@ -271,7 +276,10 @@ Return JSON with:
   "draft_body_hint": "brief description of what the email should say, otherwise null",
   "reply_target_query": "extracted search query or reference if the user is replying to a specific email from history or by description (e.g. 'email from Khanh Do about meeting', 'email 1', 'that email'), otherwise null",
   "reply_to_sender_name": "sender name/company to search for — set this when user mentions a sender (person or company like 'github', 'google') in a reply/compose context, otherwise null",
-  "compose_language": "the explicit target language for the email body when the user says things like 'bằng tiếng Anh', 'in English', 'in Japanese', 'viết tiếng Việt', 'en français'. Use the plain English name: 'English', 'Vietnamese', 'Japanese', 'French', etc. Set null when no language is explicitly mentioned."
+  "compose_language": "the explicit target language for the email body when the user says things like 'bằng tiếng Anh', 'in English', 'in Japanese', 'viết tiếng Việt', 'en français'. Use the plain English name: 'English', 'Vietnamese', 'Japanese', 'French', etc. Set null when no language is explicitly mentioned.",
+  "is_read": true | false | null,
+  "is_starred": true | false | null,
+  "semantic_keyword": "search terms for topic/subject, otherwise null"
 }}
 
 Examples:
@@ -312,6 +320,8 @@ Examples:
 - "viết email in English giới thiệu sản phẩm" -> intent: "compose_draft", draft_body_hint: "giới thiệu sản phẩm", compose_language: "English"
 - "draft a French email to the supplier" -> intent: "compose_draft", draft_body_hint: "to the supplier", compose_language: "French"
 - "soạn thư bằng tiếng Nhật xin lỗi khách" -> intent: "compose_draft", draft_body_hint: "xin lỗi khách", compose_language: "Japanese"
+- "bao nhiêu email chưa đọc từ shopee" -> intent: "count", sender_query: "shopee", is_read: false
+- "ai gửi thư nhiều nhất" -> intent: "top_senders"
 """
     try:
         completion = await openai.chat.completions.create(
@@ -812,21 +822,160 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
             "draft": draft_content,
         }
 
-    # ── Search emails ─────────────────────────────────────────
+    # ── Search/Aggregation execution ──────────────────────────
     relevant_emails: list[Email] = []
+    stats_info = ""
 
-    if intent == "recent":
-        # Fetch the 10 latest emails chronologically sorted by received_at DESC
-        result = await db.execute(
-            select(Email)
-            .where(Email.user_id == user_id)
-            .order_by(Email.received_at.desc())
-            .limit(10)
-        )
+    if intent == "count":
+        from datetime import datetime, timezone
+        query = select(func.count(Email.id)).where(Email.user_id == user_id)
+        if intent_data.get("sender_query"):
+            s = intent_data["sender_query"]
+            pattern = f"%{s}%"
+            query = query.where(or_(Email.sender.ilike(pattern), Email.sender_email.ilike(pattern)))
+        if intent_data.get("category_query"):
+            query = query.where(Email.category == intent_data["category_query"].lower())
+        if intent_data.get("is_read") is not None:
+            query = query.where(Email.is_read == intent_data["is_read"])
+        if intent_data.get("is_starred") is not None:
+            query = query.where(Email.is_starred == intent_data["is_starred"])
+        if intent_data.get("date_from"):
+            try:
+                df = datetime.fromisoformat(intent_data["date_from"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                query = query.where(Email.received_at >= df)
+            except Exception:
+                pass
+        if intent_data.get("date_to"):
+            try:
+                dt_str = intent_data["date_to"]
+                if len(dt_str) == 10:
+                    dt_str += "T23:59:59"
+                dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                query = query.where(Email.received_at <= dt)
+            except Exception:
+                pass
+        
+        count_res = await db.execute(query)
+        total_count = count_res.scalar_one()
+        
+        filters_desc = []
+        if intent_data.get("sender_query"): filters_desc.append(f"sender contains '{intent_data['sender_query']}'")
+        if intent_data.get("category_query"): filters_desc.append(f"category is '{intent_data['category_query']}'")
+        if intent_data.get("is_read") is not None: filters_desc.append("read" if intent_data["is_read"] else "unread")
+        if intent_data.get("is_starred") is not None: filters_desc.append("starred" if intent_data["is_starred"] else "unstarred")
+        if intent_data.get("date_from"): filters_desc.append(f"from {intent_data['date_from']}")
+        if intent_data.get("date_to"): filters_desc.append(f"to {intent_data['date_to']}")
+        
+        filters_str = " with filters: " + ", ".join(filters_desc) if filters_desc else ""
+        stats_info = f"SYSTEM STATS INFO: Total number of matching emails{filters_str} is: {total_count}\n"
+        
+        # Also fetch a few actual emails for preview context
+        email_query = select(Email).where(Email.user_id == user_id)
+        if intent_data.get("sender_query"):
+            s = intent_data["sender_query"]
+            pattern = f"%{s}%"
+            email_query = email_query.where(or_(Email.sender.ilike(pattern), Email.sender_email.ilike(pattern)))
+        if intent_data.get("category_query"):
+            email_query = email_query.where(Email.category == intent_data["category_query"].lower())
+        if intent_data.get("is_read") is not None:
+            email_query = email_query.where(Email.is_read == intent_data["is_read"])
+        if intent_data.get("is_starred") is not None:
+            email_query = email_query.where(Email.is_starred == intent_data["is_starred"])
+        if intent_data.get("date_from"):
+            try:
+                df = datetime.fromisoformat(intent_data["date_from"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                email_query = email_query.where(Email.received_at >= df)
+            except Exception:
+                pass
+        if intent_data.get("date_to"):
+            try:
+                dt_str = intent_data["date_to"]
+                if len(dt_str) == 10:
+                    dt_str += "T23:59:59"
+                dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                email_query = email_query.where(Email.received_at <= dt)
+            except Exception:
+                pass
+        result = await db.execute(email_query.order_by(Email.received_at.desc()).limit(5))
         relevant_emails = list(result.scalars().all())
+
+    elif intent == "top_senders":
+        from datetime import datetime, timezone
+        group_query = select(Email.sender, Email.sender_email, func.count(Email.id).label("count")).where(Email.user_id == user_id)
+        if intent_data.get("category_query"):
+            group_query = group_query.where(Email.category == intent_data["category_query"].lower())
+        if intent_data.get("is_read") is not None:
+            group_query = group_query.where(Email.is_read == intent_data["is_read"])
+        if intent_data.get("is_starred") is not None:
+            group_query = group_query.where(Email.is_starred == intent_data["is_starred"])
+        if intent_data.get("date_from"):
+            try:
+                df = datetime.fromisoformat(intent_data["date_from"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                group_query = group_query.where(Email.received_at >= df)
+            except Exception:
+                pass
+        if intent_data.get("date_to"):
+            try:
+                dt_str = intent_data["date_to"]
+                if len(dt_str) == 10:
+                    dt_str += "T23:59:59"
+                dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                group_query = group_query.where(Email.received_at <= dt)
+            except Exception:
+                pass
+        
+        group_query = group_query.group_by(Email.sender, Email.sender_email).order_by(text("count DESC")).limit(10)
+        group_res = await db.execute(group_query)
+        senders = [{"sender": row[0], "sender_email": row[1], "count": row[2]} for row in group_res.all()]
+        
+        stats_info = "SYSTEM STATS INFO: Top senders list (sender, email, message_count):\n" + "\n".join(
+            f"- {s['sender']} ({s['sender_email']}): {s['count']} emails" for s in senders
+        ) + "\n"
+
+    elif intent == "recent":
+        from datetime import datetime, timezone
+        query = select(Email).where(Email.user_id == user_id)
+        if intent_data.get("sender_query"):
+            s = intent_data["sender_query"]
+            pattern = f"%{s}%"
+            query = query.where(or_(Email.sender.ilike(pattern), Email.sender_email.ilike(pattern)))
+        if intent_data.get("category_query"):
+            query = query.where(Email.category == intent_data["category_query"].lower())
+        if intent_data.get("is_read") is not None:
+            query = query.where(Email.is_read == intent_data["is_read"])
+        if intent_data.get("is_starred") is not None:
+            query = query.where(Email.is_starred == intent_data["is_starred"])
+        if intent_data.get("date_from"):
+            try:
+                df = datetime.fromisoformat(intent_data["date_from"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                query = query.where(Email.received_at >= df)
+            except Exception:
+                pass
+        if intent_data.get("date_to"):
+            try:
+                dt_str = intent_data["date_to"]
+                if len(dt_str) == 10:
+                    dt_str += "T23:59:59"
+                dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                query = query.where(Email.received_at <= dt)
+            except Exception:
+                pass
+        result = await db.execute(query.order_by(Email.received_at.desc()).limit(10))
+        relevant_emails = list(result.scalars().all())
+
     elif intent == "search_date":
         from datetime import datetime, timezone
         query = select(Email).where(Email.user_id == user_id)
+        if intent_data.get("sender_query"):
+            s = intent_data["sender_query"]
+            pattern = f"%{s}%"
+            query = query.where(or_(Email.sender.ilike(pattern), Email.sender_email.ilike(pattern)))
+        if intent_data.get("category_query"):
+            query = query.where(Email.category == intent_data["category_query"].lower())
+        if intent_data.get("is_read") is not None:
+            query = query.where(Email.is_read == intent_data["is_read"])
+        if intent_data.get("is_starred") is not None:
+            query = query.where(Email.is_starred == intent_data["is_starred"])
         if intent_data.get("date_from"):
             try:
                 df = datetime.fromisoformat(intent_data["date_from"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
@@ -841,28 +990,144 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
                 pass
         result = await db.execute(query.order_by(Email.received_at.desc()).limit(10))
         relevant_emails = list(result.scalars().all())
+
     elif intent == "search_sender":
         sender_query = intent_data.get("sender_query") or ""
         if sender_query:
-            relevant_emails = await search_emails_by_sender(user_id, sender_query, 10, db)
-            # If sender search returns nothing, fall back to semantic search
+            from datetime import datetime, timezone
+            query = select(Email).where(Email.user_id == user_id)
+            escaped_query = sender_query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{escaped_query}%"
+            query = query.where(or_(Email.sender.ilike(pattern), Email.sender_email.ilike(pattern)))
+            if intent_data.get("category_query"):
+                query = query.where(Email.category == intent_data["category_query"].lower())
+            if intent_data.get("is_read") is not None:
+                query = query.where(Email.is_read == intent_data["is_read"])
+            if intent_data.get("is_starred") is not None:
+                query = query.where(Email.is_starred == intent_data["is_starred"])
+            if intent_data.get("date_from"):
+                try:
+                    df = datetime.fromisoformat(intent_data["date_from"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                    query = query.where(Email.received_at >= df)
+                except Exception:
+                    pass
+            if intent_data.get("date_to"):
+                try:
+                    dt = datetime.fromisoformat(intent_data["date_to"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                    query = query.where(Email.received_at <= dt)
+                except Exception:
+                    pass
+            result = await db.execute(query.order_by(Email.received_at.desc()).limit(10))
+            relevant_emails = list(result.scalars().all())
             if not relevant_emails:
                 query_embedding = await embed_text(message, user_id)
                 relevant_emails = await search_similar_emails(user_id, query_embedding, 5, db)
+
     elif intent == "search_category":
         category_query = intent_data.get("category_query") or ""
         if category_query:
-            result = await db.execute(
-                select(Email)
-                .where(Email.user_id == user_id, Email.category == category_query)
-                .order_by(Email.received_at.desc())
-                .limit(10)
-            )
+            from datetime import datetime, timezone
+            query = select(Email).where(Email.user_id == user_id, Email.category == category_query)
+            if intent_data.get("sender_query"):
+                s = intent_data["sender_query"]
+                pattern = f"%{s}%"
+                query = query.where(or_(Email.sender.ilike(pattern), Email.sender_email.ilike(pattern)))
+            if intent_data.get("is_read") is not None:
+                query = query.where(Email.is_read == intent_data["is_read"])
+            if intent_data.get("is_starred") is not None:
+                query = query.where(Email.is_starred == intent_data["is_starred"])
+            if intent_data.get("date_from"):
+                try:
+                    df = datetime.fromisoformat(intent_data["date_from"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                    query = query.where(Email.received_at >= df)
+                except Exception:
+                    pass
+            if intent_data.get("date_to"):
+                try:
+                    dt = datetime.fromisoformat(intent_data["date_to"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                    query = query.where(Email.received_at <= dt)
+                except Exception:
+                    pass
+            result = await db.execute(query.order_by(Email.received_at.desc()).limit(10))
             relevant_emails = list(result.scalars().all())
     else:
-        # General intent: use semantic search
-        query_embedding = await embed_text(message, user_id)
-        relevant_emails = await search_similar_emails(user_id, query_embedding, 5, db)
+        from datetime import datetime, timezone
+        candidate_q = select(Email.id).where(Email.user_id == user_id)
+        has_filter = False
+        if intent_data.get("sender_query"):
+            s = intent_data["sender_query"]
+            pattern = f"%{s}%"
+            candidate_q = candidate_q.where(or_(Email.sender.ilike(pattern), Email.sender_email.ilike(pattern)))
+            has_filter = True
+        if intent_data.get("category_query"):
+            candidate_q = candidate_q.where(Email.category == intent_data["category_query"].lower())
+            has_filter = True
+        if intent_data.get("is_read") is not None:
+            candidate_q = candidate_q.where(Email.is_read == intent_data["is_read"])
+            has_filter = True
+        if intent_data.get("is_starred") is not None:
+            candidate_q = candidate_q.where(Email.is_starred == intent_data["is_starred"])
+            has_filter = True
+        if intent_data.get("date_from"):
+            try:
+                df = datetime.fromisoformat(intent_data["date_from"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                candidate_q = candidate_q.where(Email.received_at >= df)
+                has_filter = True
+            except Exception:
+                pass
+        if intent_data.get("date_to"):
+            try:
+                dt_str = intent_data["date_to"]
+                if len(dt_str) == 10:
+                    dt_str += "T23:59:59"
+                dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                candidate_q = candidate_q.where(Email.received_at <= dt)
+                has_filter = True
+            except Exception:
+                pass
+
+        if has_filter:
+            candidate_res = await db.execute(candidate_q)
+            matching_ids = [row[0] for row in candidate_res.all()]
+            
+            if matching_ids:
+                kw = intent_data.get("semantic_keyword") or message
+                query_embedding = await embed_text(kw, user_id)
+                if len(matching_ids) > 10:
+                    vector_str = f"[{','.join(str(x) for x in query_embedding)}]"
+                    try:
+                        async with db.begin_nested():
+                            rows = await db.execute(
+                                text("""SELECT e.id FROM emails e
+                                       JOIN email_embeddings ee ON e.id = ee.email_id
+                                       WHERE e.id = ANY(:matching_ids)
+                                       ORDER BY ee.embedding <=> :embedding::vector
+                                       LIMIT :limit"""),
+                                {"matching_ids": matching_ids, "embedding": vector_str, "limit": 5},
+                            )
+                            ranked_ids = [row[0] for row in rows.fetchall()]
+                            if ranked_ids:
+                                email_res = await db.execute(
+                                    select(Email).where(Email.id.in_(ranked_ids))
+                                )
+                                emails_map = {e.id: e for e in email_res.scalars().all()}
+                                relevant_emails = [emails_map[eid] for eid in ranked_ids if eid in emails_map]
+                    except Exception as ex:
+                        logger.warning(f"Vector search ranking failed: {ex}")
+                        email_res = await db.execute(
+                            select(Email).where(Email.id.in_(matching_ids)).order_by(Email.received_at.desc()).limit(5)
+                        )
+                        relevant_emails = list(email_res.scalars().all())
+                else:
+                    email_res = await db.execute(
+                        select(Email).where(Email.id.in_(matching_ids)).order_by(Email.received_at.desc())
+                    )
+                    relevant_emails = list(email_res.scalars().all())
+            else:
+                relevant_emails = []
+        else:
+            query_embedding = await embed_text(message, user_id)
+            relevant_emails = await search_similar_emails(user_id, query_embedding, 5, db)
 
     # Fallback to Fulltext search if semantic search yields less than 2 emails
     if intent not in ("recent", "search_date", "search_category") and len(relevant_emails) < 2:
@@ -920,7 +1185,7 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
     system_prompt = f"""You are an AI email assistant. Help users understand and manage their emails.
 {user_info_str}Current date and time: {today_str}. Use this to interpret relative time references such as "today", "yesterday", "this week", "last week", "hôm nay", "hôm qua", "tuần này", v.v.
 
-Use the following emails from the user's inbox as context to answer their question.
+{stats_info}Use the following emails from the user's inbox as context to answer their question.
 If the information is not in the provided emails, say so clearly.
 
 When analyzing the emails:

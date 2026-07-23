@@ -53,7 +53,7 @@ interface Session {
 }
 
 const SUGGESTIONS = [
-  { icon: '🔍', text: 'Find emails from Khanh Do' },
+  { icon: '🔍', text: 'Find unread emails from this week' },
   { icon: '📋', text: 'Summarize work emails this week' },
   { icon: '⚡', text: 'Which emails have high priority?' },
   { icon: '✉️', text: 'Compose a thank you email to boss' },

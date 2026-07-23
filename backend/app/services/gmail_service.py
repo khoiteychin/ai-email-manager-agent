@@ -180,57 +180,39 @@ async def get_gmail_service(user_id: str, db: AsyncSession):
 
 
 async def fetch_recent_emails(user_id: str, db: AsyncSession, max_results: int = 50) -> list[dict]:
-    import asyncio
-
     service = await get_gmail_service(user_id, db)
     if not service:
         logger.warning(f"No Gmail service for user {user_id}")
         return []
 
-    loop = asyncio.get_event_loop()
-
     try:
-        response = await loop.run_in_executor(
-            None,
-            lambda: service.users().messages().list(
-                userId="me",
-                maxResults=max_results,
-                labelIds=["INBOX"],
-            ).execute()
-        )
+        response = service.users().messages().list(
+            userId="me",
+            maxResults=max_results,
+            labelIds=["INBOX"],
+        ).execute()
 
         messages = response.get("messages", [])
         if not messages:
             return []
 
-        # ── Fetch all messages in parallel (10x faster than sequential) ──
-        async def fetch_one(msg_id: str) -> Optional[dict]:
+        emails = []
+        for msg in messages[:max_results]:
             try:
-                full_msg = await loop.run_in_executor(
-                    None,
-                    lambda: service.users().messages().get(
-                        userId="me",
-                        id=msg_id,
-                        format="full",
-                    ).execute()
-                )
-                return _parse_message(full_msg)
+                full_msg = service.users().messages().get(
+                    userId="me",
+                    id=msg["id"],
+                    format="full",
+                ).execute()
+                parsed = _parse_message(full_msg)
+                if parsed:
+                    emails.append(parsed)
             except HttpError as e:
-                logger.warning(f"Failed to fetch message {msg_id}: {e}")
-                return None
+                logger.warning(f"Failed to fetch message {msg['id']}: {e}")
 
-        results = await asyncio.gather(
-            *[fetch_one(msg["id"]) for msg in messages[:max_results]],
-            return_exceptions=False,
-        )
-        emails = [r for r in results if r is not None]
-
-        # Save latest historyId in parallel with message fetches (already done above)
+        # Save latest historyId so future syncs can use incremental API
         try:
-            profile = await loop.run_in_executor(
-                None,
-                lambda: service.users().getProfile(userId="me").execute()
-            )
+            profile = service.users().getProfile(userId="me").execute()
             new_history_id = str(profile.get("historyId", ""))
             if new_history_id:
                 result = await db.execute(select(GmailAccount).where(GmailAccount.user_id == user_id))
@@ -242,7 +224,6 @@ async def fetch_recent_emails(user_id: str, db: AsyncSession, max_results: int =
         except Exception as hist_err:
             logger.warning(f"Could not save historyId: {hist_err}")
 
-        logger.info(f"fetch_recent_emails: fetched {len(emails)}/{len(messages)} emails for user {user_id}")
         return emails
     except Exception as e:
         logger.error(f"Error fetching emails: {e}")
@@ -255,8 +236,6 @@ async def fetch_emails_incremental(user_id: str, db: AsyncSession) -> list[dict]
     Only fetches emails added since last sync – typically <500ms vs 10-30s for full sync.
     Returns empty list if no history_id stored (should fall back to full sync).
     """
-    import asyncio
-
     result = await db.execute(select(GmailAccount).where(GmailAccount.user_id == user_id))
     account = result.scalar_one_or_none()
 
@@ -268,18 +247,13 @@ async def fetch_emails_incremental(user_id: str, db: AsyncSession) -> list[dict]
     if not service:
         return []
 
-    loop = asyncio.get_event_loop()
-
     try:
-        history_response = await loop.run_in_executor(
-            None,
-            lambda: service.users().history().list(
-                userId="me",
-                startHistoryId=account.history_id,
-                historyTypes=["messageAdded"],
-                labelId="INBOX",
-            ).execute()
-        )
+        history_response = service.users().history().list(
+            userId="me",
+            startHistoryId=account.history_id,
+            historyTypes=["messageAdded"],
+            labelId="INBOX",
+        ).execute()
 
         # Update history_id to the latest regardless of whether there are new messages
         new_history_id = str(history_response.get("historyId", account.history_id))
@@ -302,27 +276,20 @@ async def fetch_emails_incremental(user_id: str, db: AsyncSession) -> list[dict]
         if not new_msg_ids:
             return []
 
-        # Fetch full details for each new message — in parallel
-        async def fetch_one_incremental(msg_id: str) -> Optional[dict]:
+        # Fetch full details for each new message
+        emails = []
+        for msg_id in new_msg_ids:
             try:
-                full_msg = await loop.run_in_executor(
-                    None,
-                    lambda: service.users().messages().get(
-                        userId="me",
-                        id=msg_id,
-                        format="full",
-                    ).execute()
-                )
-                return _parse_message(full_msg)
+                full_msg = service.users().messages().get(
+                    userId="me",
+                    id=msg_id,
+                    format="full",
+                ).execute()
+                parsed = _parse_message(full_msg)
+                if parsed:
+                    emails.append(parsed)
             except HttpError as e:
                 logger.warning(f"Failed to fetch incremental message {msg_id}: {e}")
-                return None
-
-        results = await asyncio.gather(
-            *[fetch_one_incremental(mid) for mid in new_msg_ids],
-            return_exceptions=False,
-        )
-        emails = [r for r in results if r is not None]
 
         logger.info(f"Incremental sync: {len(emails)} new email(s) for user {user_id}")
         return emails

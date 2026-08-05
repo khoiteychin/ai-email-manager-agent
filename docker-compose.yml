@@ -26,8 +26,6 @@ services:
       - ./backend/.env
     environment:
       - DATABASE_URL=postgresql+asyncpg://email_agent_user:CHANGE_THIS_STRONG_PASSWORD@db:5432/email_agent_db
-    volumes:
-      - ./backend:/app
     ports:
       - "3001:3001"
 

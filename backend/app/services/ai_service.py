@@ -1806,8 +1806,8 @@ async def search_similar_emails(
                 text("""SELECT e.id FROM emails e
                        JOIN email_embeddings ee ON e.id = ee.email_id
                        WHERE e.user_id = :user_id
-                       AND (ee.embedding <=> :embedding::vector) < :threshold
-                       ORDER BY ee.embedding <=> :embedding::vector
+                       AND (ee.embedding <=> cast(:embedding as vector)) < :threshold
+                       ORDER BY ee.embedding <=> cast(:embedding as vector)
                        LIMIT :limit"""),
 
                 {"user_id": user_id, "embedding": vector_str, "limit": limit, "threshold": RAG_DISTANCE_THRESHOLD},
@@ -1821,8 +1821,8 @@ async def search_similar_emails(
                     text("""SELECT e.id FROM emails e
                            JOIN email_embeddings ee ON e.id = ee.email_id
                            WHERE e.user_id = :user_id
-                           AND (ee.embedding <=> :embedding::vector) < 0.6
-                           ORDER BY ee.embedding <=> :embedding::vector
+                           AND (ee.embedding <=> cast(:embedding as vector)) < 0.6
+                           ORDER BY ee.embedding <=> cast(:embedding as vector)
                            LIMIT :limit"""),
                     {"user_id": user_id, "embedding": vector_str, "limit": limit},
                 )

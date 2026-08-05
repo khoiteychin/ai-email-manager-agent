@@ -219,6 +219,16 @@ async def health():
         "environment": settings.ENVIRONMENT,
     }
 
+# ─── Fallback Redirects ─────────────────────────────────────────
+from fastapi import Request
+from fastapi.responses import RedirectResponse
+
+@app.get("/gmail/callback", tags=["Fallback"])
+async def gmail_callback_fallback(request: Request):
+    query_params = str(request.query_params)
+    return RedirectResponse(url=f"/api/gmail/callback?{query_params}")
+
+
 
 @app.get("/", tags=["Health"])
 async def root():

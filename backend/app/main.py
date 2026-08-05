@@ -200,13 +200,13 @@ async def add_security_headers(request, call_next):
     return response
 
 # ─── Routers ────────────────────────────────────────────────────
-app.include_router(emails.router)
-app.include_router(ai.router)
-app.include_router(gmail.router)
-app.include_router(labels.router)
-app.include_router(user.router)
-app.include_router(discord.router)
-app.include_router(drafts.router)
+app.include_router(emails.router, prefix="/api")
+app.include_router(ai.router, prefix="/api")
+app.include_router(gmail.router, prefix="/api")
+app.include_router(labels.router, prefix="/api")
+app.include_router(user.router, prefix="/api")
+app.include_router(discord.router, prefix="/api")
+app.include_router(drafts.router, prefix="/api")
 
 
 # ─── Health check ───────────────────────────────────────────────

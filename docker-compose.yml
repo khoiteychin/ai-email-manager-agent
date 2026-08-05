@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # Database PostgreSQL + pgvector
   db:
-    image: pgvector/pgvector:15
+    image: pgvector/pgvector:pg15
     container_name: email_agent_db_container
     restart: always
     environment:

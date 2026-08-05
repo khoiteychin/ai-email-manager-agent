@@ -19,14 +19,17 @@ from app.utils.notification_helper import send_notifications_for_email
 router = APIRouter(prefix="/gmail", tags=["Gmail"])
 logger = logging.getLogger(__name__)
 
-
+#hàm trả về response cho oauth
 def oauth_popup_response(provider: str, success: bool, message: str = "") -> HTMLResponse:
+    #kiểm tra trạng thái thành công hay thất bại
     status = "success" if success else "error"
+    #tạo payload
     payload = {
         "type": "OAUTH_SUCCESS" if success else "OAUTH_ERROR",
         "provider": provider,
         "message": message,
     }
+    #trả về response cho oauth
     return HTMLResponse(f"""
 <!doctype html>
 <html>
@@ -49,15 +52,19 @@ def oauth_popup_response(provider: str, success: bool, message: str = "") -> HTM
 </html>
 """)
 
-
+#trang web để người dùng kết nối tài khoản gmail
 @router.get("/connect")
+#hàm kiểm tra người dùng đã đăng nhập chưa thông qua get_current_user
 async def connect(current_user: AuthUser = Depends(get_current_user)):
     """Redirect user to Google OAuth consent screen"""
+    #lấy url để kết nối tài khoản gmail
     url = gmail_service.get_auth_url(current_user.uid)
+    #chuyển hướng người dùng đến url để kết nối tài khoản gmail
     return RedirectResponse(url=url)
 
 
 @router.get("/callback")
+#hàm xử lý callback sau khi người dùng đã kết nối tài khoản gmail
 async def callback(
     code: str,
     state: str,  # user_id passed via state param
@@ -65,11 +72,15 @@ async def callback(
 ):
     """Handle Google OAuth callback, store tokens, setup push notifications"""
     try:
+        #lấy user_id từ state
         user_id = state.split(":", 1)[0]
+        #xử lý callback
         await gmail_service.handle_oauth_callback(code, state, db)
+        #cài đặt push notifications
         try:
             await gmail_service.setup_watch(user_id, db)
         except Exception as watch_err:
+            #thông báo lỗi
             logger.error(f"Gmail watch setup failed for {user_id}, but continuing: {watch_err}")
 
         # Explicitly write to user_integrations so frontend /connect/accounts
@@ -160,51 +171,74 @@ async def _sync_user_emails_background(user_id: str):
         except Exception as e:
             logger.error(f"Gmail webhook background sync failed for user {user_id}: {e}")
 
-
+#khai báo endpoint
 @router.post("/webhook")
+#rate limit để giới hạn 200 request / phút
 @limiter.limit("200/minute")
+#hàm xử lý webhook từ gmail
 async def webhook(request: Request):
     """Receive Gmail Pub/Sub push notifications from Google"""
     # Verify Google Pub/Sub JWT token (unless in development mode and no token is present)
+    # JWT token là một chuỗi string dùng để xác thực token
     auth_header = request.headers.get("Authorization", "")
+    # nếu ở chế độ development và không có token thì bỏ qua
     if settings.ENVIRONMENT == "development" and not auth_header:
         logger.warning("Bypassing Gmail webhook signature check in development mode.")
     else:
+        #kiểm tra header có chứa "Bearer " không 
         if not auth_header.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+        #tách token ra khỏi header
         token = auth_header.split(" ", 1)[1]
+        #kiểm tra token
         try:
+            #import request và id_token từ google.auth 
             from google.auth.transport import requests as google_requests
             from google.oauth2 import id_token
             id_info = id_token.verify_oauth2_token(token, google_requests.Request())
+            #kiểm tra token
             if id_info.get("iss") not in ["accounts.google.com", "https://accounts.google.com"]:
+                #thông báo lỗi
                 raise HTTPException(status_code=401, detail="Invalid token issuer")
         except Exception as e:
             logger.error(f"Gmail webhook auth token verification failed: {e}")
+            #thông báo lỗi
             raise HTTPException(status_code=401, detail="Invalid Pub/Sub token")
 
     try:
+        #lấy body từ request
         body = await request.json()
+        #lấy data từ body
         data = body.get("message", {}).get("data", "")
         if data:
+            #decode data
             decoded = json.loads(base64.b64decode(data).decode("utf-8"))
             email_address = decoded.get("emailAddress", "")
+            #thông báo
             logger.info(f"Gmail webhook: notification for {email_address}")
 
             if email_address:
                 # Find user_id by gmail email address
+                #async with AsyncSessionLocal() as db: 
+                #tạo một phiên giao dịch với cơ sở dữ liệu 
+                #tương đương với việc mở kết nối cơ sở dữ liệu và đóng kết nối sau khi sử dụng 
                 async with AsyncSessionLocal() as db:
+                    #truy vấn cơ sở dữ liệu 
                     result = await db.execute(
                         select(GmailAccount).where(GmailAccount.email == email_address)
                     )
+                    #lấy kết quả
                     account = result.scalar_one_or_none()
 
                 if account:
                     # Trigger sync in background without blocking the response
+                    #tạo một tác vụ nền để đồng bộ email
                     asyncio.create_task(_sync_user_emails_background(account.user_id))
                 else:
+                    #thông báo không tìm thấy tài khoản
                     logger.warning(f"Gmail webhook: no account found for {email_address}")
     except Exception as e:
+        #thông báo lỗi
         logger.error(f"Gmail webhook error: {e}")
     return {"ok": True}
 

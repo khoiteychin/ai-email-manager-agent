@@ -22,15 +22,25 @@ sudo apt-get install -y \
     ca-certificates gnupg \
     ufw fail2ban
 
-# ── Python 3.11 ──────────────────────────────────────────────
+# ── Python 3 ──────────────────────────────────────────────────
 echo "======================================"
-echo " [3/6] Cài đặt Python 3.11..."
+echo " [3/6] Cài đặt Python 3..."
 echo "======================================"
-sudo add-apt-repository ppa:deadsnakes/ppa -y
-sudo apt-get update -y
-sudo apt-get install -y python3.11 python3.11-venv python3.11-dev python3-pip
-sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+# Cập nhật repository và cài đặt bản python3 mặc định của OS kèm venv, dev và pip
+sudo apt-get install -y python3 python3-pip python3-venv python3-dev
+
+# Đăng ký deadsnakes PPA để thử cài riêng python3.11 nếu OS hiện tại chưa có sẵn 3.11
+if ! python3 -c "import sys; exit(0 if sys.version_info >= (3, 11) else 1)" 2>/dev/null; then
+    echo "Phiên bản Python hiện tại thấp hơn 3.11. Đang thử cài đặt Python 3.11 từ PPA..."
+    sudo add-apt-repository ppa:deadsnakes/ppa -y || true
+    sudo apt-get update -y || true
+    sudo apt-get install -y python3.11 python3.11-venv python3.11-dev || echo "Không cài được Python 3.11, sử dụng bản python3 mặc định của hệ thống."
+    if dpkg -s python3.11 >/dev/null 2>&1; then
+        sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 || true
+    fi
+fi
 python3 --version
+
 
 # ── Node.js 20 LTS ───────────────────────────────────────────
 echo "======================================"

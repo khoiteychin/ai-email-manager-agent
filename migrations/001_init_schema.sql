@@ -12,29 +12,29 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.users (
   id            VARCHAR(255) PRIMARY KEY,  -- Firebase UID
-  email         VARCHAR(255) UNIQUE NOT NULL,
-  name          VARCHAR(255),
-  avatar_url    TEXT,
-  created_at    TIMESTAMPTZ DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ DEFAULT NOW()
+  email         VARCHAR(255) UNIQUE NOT NULL, -- email của user
+  name          VARCHAR(255),-- tên của user
+  avatar_url    TEXT,-- avatar của user
+  created_at    TIMESTAMPTZ DEFAULT NOW(),-- ngày tạo 
+  updated_at    TIMESTAMPTZ DEFAULT NOW()-- ngày cập nhật
 );
 
 -- ============================================================
 -- gmail_accounts
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.gmail_accounts (
-  id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id         VARCHAR(255) NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  google_id       VARCHAR(255),
-  email           VARCHAR(255),
-  access_token    TEXT,
-  refresh_token   TEXT,
-  token_expiry    TIMESTAMPTZ,
-  watch_expiry    TIMESTAMPTZ,
-  history_id      VARCHAR(100),
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
-  updated_at      TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE (user_id)
+  id              UUID DEFAULT gen_random_uuid() PRIMARY KEY, -- id của gmail_accounts
+  user_id         VARCHAR(255) NOT NULL REFERENCES public.users(id) ON DELETE CASCADE, -- id của user
+  google_id       VARCHAR(255), -- google id của user
+  email           VARCHAR(255), -- email của user
+  access_token    TEXT, -- access token của user
+  refresh_token   TEXT, -- refresh token của user
+  token_expiry    TIMESTAMPTZ, -- token expiry của user
+  watch_expiry    TIMESTAMPTZ, -- watch expiry của user
+  history_id      VARCHAR(100), -- history id của user
+  created_at      TIMESTAMPTZ DEFAULT NOW(), -- ngày tạo
+  updated_at      TIMESTAMPTZ DEFAULT NOW(), -- ngày cập nhật
+  UNIQUE (user_id) -- unique user_id
 );
 
 -- ============================================================

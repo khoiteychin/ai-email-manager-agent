@@ -33,19 +33,22 @@ def get_openai_client() -> AsyncOpenAI:
 # ─── Prompt Injection Detection ───────────────────────────────────────────
 
 # Compiled once at module load — fast for every request
+# Regex phát hiện prompt injection 
 _INJECTION_PATTERNS: list[re.Pattern] = [
+    # Các cụm từ override cổ điển (tiếng Anh) dùng bắt các câu chối bỏ quy tắc như : ignore previous instructions , forget previous instructions , etc
     # Classic override phrases (English)
     re.compile(r'ignore\s+(all\s+)?(previous|prior|above|your|the)?\s*(instructions?|rules?|prompts?|context|guidelines?)', re.IGNORECASE),
     re.compile(r'forget\s+(all\s+)?(previous|prior|above|your|the)?\s*(instructions?|rules?|prompts?|context)', re.IGNORECASE),
     re.compile(r'disregard\s+(all\s+)?(previous|prior|above|your|the)?\s*(instructions?|rules?|prompts?)', re.IGNORECASE),
     re.compile(r'do\s+not\s+follow\s+(your\s+)?(previous\s+)?(instructions?|rules?|guidelines?)', re.IGNORECASE),
     re.compile(r'override\s+(your\s+)?(previous\s+)?(instructions?|rules?|programming)', re.IGNORECASE),
+    # Các cụm từ override cổ điển (tiếng Việt) dùng để bắt các câu chối bỏ quy tắc như : bỏ qua chỉ thị trước , quên chỉ thị trước ,v.v...
     # Classic override phrases (Vietnamese)
     re.compile(r'(bỏ\s+qua|quên|xóa)\s+(tất\s+cả\s+)?(các\s+)?(chỉ\s+thị|hướng\s+dẫn|luật|quy\s+tắc|lệnh|yêu\s+cầu|prompt)\s+(trước|cũ|bên\s+trên)', re.IGNORECASE),
     re.compile(r'(không|đừng)\s+(làm\s+theo|tuân\s+theo|quan\s+tâm)\s+(các\s+)?(chỉ\s+thị|hướng\s+dẫn|luật|quy\s+tắc|lệnh)', re.IGNORECASE),
     re.compile(r'ghi\s+đè\s+(các\s+)?(chỉ\s+thị|hướng\s+dẫn|luật)', re.IGNORECASE),
-    
-    # Role / persona hijacking (English & Vietnamese)
+    # các cụm từ jailbreaking 
+    # Role / persona hijacking (English & Vietnamese) dùng để bắt các câu như : you are now an evil AI , act as an evil AI , pretend to be an evil AI , etc
     re.compile(r'you\s+are\s+now\s+(an?\s+)?(evil|malicious|hacker|attacker|unrestricted|jailbroken)', re.IGNORECASE),
     re.compile(r'act\s+as\s+(an?\s+)?(evil|malicious|hacker|attacker|unrestricted|jailbroken|DAN)', re.IGNORECASE),
     re.compile(r'pretend\s+(to\s+be|you\s+are)\s+(an?\s+)?(evil|malicious|unrestricted|jailbroken)', re.IGNORECASE),
@@ -53,8 +56,8 @@ _INJECTION_PATTERNS: list[re.Pattern] = [
     re.compile(r'\bDAN\s+mode\b', re.IGNORECASE),
     re.compile(r'(bây\s+giờ\s+)?(bạn|mày|ngươi)\s+là\s+(một\s+)?(hacker|kẻ\s+tấn\s+công|kẻ\s+xấu|ai\s+không\s+bị\s+kiểm\s+duyệt|người\s+dùng\s+nội\s+bộ)', re.IGNORECASE),
     re.compile(r'(đóng\s+vai|giả\s+vờ\s+là|hoạt\s+động\s+như)\s+(một\s+)?(hacker|DAN|nhà\s+phát\s+triển|developer)', re.IGNORECASE),
-    
-    # Mass data exfiltration commands (English & Vietnamese)
+    # Lệnh trích xuất dữ liệu số lượng lớn (tiếng Anh và tiếng Việt) dùng để bắt các câu như : forward all email , send all email to , export all email , leak all email , dump all email , chuyển tiếp tất cả email , gửi tất cả email đến , xuất tất cả email , rò rỉ tất cả email , lấy tất cả email , v.v... 
+    # Mass data exfiltration commands (English & Vietnamese) 
     re.compile(r'forward\s+(all|every|each)\s+(email|mail|message)s?\s*(in\s+(the\s+)?mailbox|to\s+)', re.IGNORECASE),
     re.compile(r'send\s+(all|every|each)\s+(email|mail|message)s?\s+to\s+', re.IGNORECASE),
     re.compile(r'export\s+(all|every)\s+(email|mail|data|message)s?', re.IGNORECASE),
@@ -62,19 +65,25 @@ _INJECTION_PATTERNS: list[re.Pattern] = [
     re.compile(r'dump\s+(all|every|the)?\s*(email|mail|data|inbox)', re.IGNORECASE),
     re.compile(r'(chuyển\s+tiếp|gửi)\s+(tất\s+cả|toàn\s+bộ)\s+(email|mail|thư|tin\s+nhắn)\s+(cho|tới|đến)', re.IGNORECASE),
     re.compile(r'(xuất|rò\s+rỉ|lấy)\s+(tất\s+cả|toàn\s+bộ)\s+(dữ\s+liệu|email|mail|thư)', re.IGNORECASE),
-    
+    # các lệnh yêu cầu lộ system prompt (tiếng Anh và tiếng Việt) dùng để bắt các câu như : reveal system prompt , show system prompt , print system prompt , output system prompt , repeat system prompt , tell me system prompt , what is system prompt , hiển thị system prompt , tiết lộ system prompt , in ra system prompt , lặp lại system prompt , cho tôi biết system prompt , nói cho tôi system prompt , v.v...    
     # System prompt extraction (English & Vietnamese)
     re.compile(r'(reveal|show|print|output|repeat|tell\s+me|what\s+is)\s+(your\s+)?(system\s+prompt|initial\s+prompt|instructions?|programming)', re.IGNORECASE),
     re.compile(r'what\s+(are|were)\s+your\s+(original\s+|initial\s+|system\s+)?instructions?', re.IGNORECASE),
     re.compile(r'(hiển\s+thị|tiết\s+lộ|in\s+ra|lặp\s+lại|cho\s+tôi\s+biết|nói\s+cho\s+tôi)\s+(prompt\s+hệ\s+thống|chỉ\s+thị\s+ban\s+đầu|lệnh\s+hệ\s+thống|hướng\s+dẫn\s+hệ\s+thống|system\s+prompt)', re.IGNORECASE),
     re.compile(r'(chỉ\s+thị|hướng\s+dẫn|prompt)\s+(ban\s+đầu|hệ\s+thống|gốc)\s+của\s+(bạn|mày)\s+là\s+gì', re.IGNORECASE),
     
-    # Delimiter / separator injection
+    # các ký tự phân tách (Delimiter / separator injection) dùng để bắt các câu như : ```system , <system> , [INST] , [SYS] , <|im_start|> , <|endoftext|> , v.v...
     re.compile(r'```\s*system', re.IGNORECASE),
     re.compile(r'<\s*system\s*>', re.IGNORECASE),
     re.compile(r'\[INST\]|\[SYS\]|<\|im_start\|>|<\|endoftext\|>', re.IGNORECASE),
 ]
 
+#Hàm phát hiện prompt injection 
+#trả về True nếu tin nhắn chứa mẫu prompt injection
+#trả về False nếu không chứa mẫu prompt injection 
+#Đây là một regex pre-filter chạy TRƯỚC MỖI LLM call
+#Nó cố ý an toàn — dương tính giả thì an toàn (chặn tin nhắn),
+#âm tính giả thì rơi xuống LLM's own system-prompt defences
 def detect_prompt_injection(message: str) -> bool:
     """
     Return True if the message contains a known prompt injection pattern.
@@ -82,20 +91,32 @@ def detect_prompt_injection(message: str) -> bool:
     It is intentionally conservative — false positives are safe (block the message),
     false negatives fall through to the LLM's own system-prompt defences.
     """
+    #duyệt qua tất cả các mẫu trong _INJECTION_PATTERNS
+    #nếu tìm thấy mẫu nào trong tin nhắn thì trả về True 
+    #ngược lại trả về False
     for pattern in _INJECTION_PATTERNS:
         if pattern.search(message):
             return True
     return False
 
-
+#Hàm làm sạch đầu vào người dùng
+#tránh dữ liệu rác , không hợp lệ hoặc chuỗi quá dài gây lỗi 
 def sanitize_user_input(message: str) -> str:
     """
     Strip null bytes, non-printable control characters (except \n/\t),
     and cap length. This prevents token-stuffing and escape-sequence attacks.
     """
+    #re.sub(pattern, repl, string, count=0, flags=0) : Thay thế chuỗi con trong chuỗi. Thay thế tất cả các chuỗi con trong chuỗi mà khớp với pattern.
+    #pattern: mẫu cần tìm \x00-\x08\x0b-\x0c\x0e-\x1f\x7f  
+    #repl: chuỗi thay thế
+    #string: chuỗi cần tìm
+    #count: số lần thay thế
+    #flags: cờ
+    #lọc hết các ký tự đặc biệt , ký tự điều khiển (ngoại trừ \t và \n)
     # Remove null bytes and other non-printable ASCII control chars (keep \t and \n)
     cleaned = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', message)
     # Truncate to hard max length
+    # cắt ngắn chuỗi nếu vượt quá độ dài tối đa 
     if len(cleaned) > MAX_USER_MESSAGE_LENGTH:
         cleaned = cleaned[:MAX_USER_MESSAGE_LENGTH]
         logger.warning("User message truncated to MAX_USER_MESSAGE_LENGTH")
@@ -174,15 +195,22 @@ def count_tokens(text: str, model: str = "gpt-4o-mini") -> int:
     except KeyError:
         encoding = tiktoken.get_encoding("cl100k_base")
     return len(encoding.encode(text))
-
+#Trừu tượng hóa việc cắt chuỗi theo ngân sách token
 def truncate_to_budget(text: str, budget: int = MAX_CONTEXT_TOKENS, model: str = "gpt-4o-mini") -> str:
+    #Kiểm tra xem chuỗi có vượt quá ngân sách token không
     if count_tokens(text, model) <= budget:
+        #trả về chuỗi nguyên bản
         return text
+    #cắt chuỗi theo ngân sách token
     try:
+        #lấy encoding cho model
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
+        #lấy encoding cho model mặc định
         encoding = tiktoken.get_encoding("cl100k_base")
+    #cắt chuỗi theo ngân sách token
     tokens = encoding.encode(text)
+    #trả về chuỗi đã cắt
     return encoding.decode(tokens[:budget]) + "\n...[TRUNCATED]"
 
 # ─── Audit Logging & Masking ──────────────────────────────────
@@ -216,6 +244,7 @@ class IntentSchema(BaseModel):
     is_starred: Optional[bool] = None
     semantic_keyword: Optional[str] = None
 
+#Hàm phát hiện ý định
 async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI, history: list = None) -> dict:
     """
     Detect user intent from message, taking conversation history into account. Returns a dict with:
@@ -227,21 +256,24 @@ async def detect_intent(user_id: str, message: str, openai: AsyncOpenAI, history
     - date_from: ISO date string for search_date start
     - date_to: ISO date string for search_date end
     """
+    #Kiểm tra rate limit
     check_rate_limit(user_id)
     
     history_str = ""
+    #Lấy lịch sử hội thoại
     if history:
         # Include last 8 messages for better follow-up context awareness
         # Use 800 chars per message so numbered email lists (Email 10: ...) don't get cut off
         recent_history = history[-8:]
+        #Ghép lịch sử hội thoại vào prompt
         history_str = "Recent conversation history (use this to understand references like 'that email', 'email đó', 'email trên', 'email 10'):" + "\n" + "\n".join(
             f"{m.role}: {m.content[:800]}" for m in recent_history
         ) + "\n\n"
-
+    #Lấy ngày hiện tại
     from datetime import datetime, timezone, timedelta
     now_vn = datetime.now(timezone(timedelta(hours=7)))
     today_str = now_vn.strftime("%Y-%m-%d")
-
+    #Tạo prompt
     prompt = f"""{history_str}Analyze this user message about emails and return a JSON object.
 
 Current date (Vietnam time): {today_str}
@@ -439,43 +471,56 @@ async def search_emails_fulltext(user_id: str, query: str, limit: int, db: Async
 # ─── RAG Chat ─────────────────────────────────────────────────
 
 async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncSession) -> dict:
+    #Lấy client OpenAI
     openai = get_openai_client()
 
     # ─────────────────────────────────────────────────────────────────────
     # SECURITY LAYER 1 — Sanitize & detect prompt injection BEFORE any
     # DB query or LLM call. Fail fast and loud on suspicious input.
     # ─────────────────────────────────────────────────────────────────────
+    #Lọc input
     message = sanitize_user_input(message)
-
+    #Kiểm tra prompt injection
     if detect_prompt_injection(message):
+        #Ghi log cảnh báo
         logger.warning(
             f"Security: Prompt injection attempt detected from user {user_id}. "
             f"Message (truncated): {message[:200]}"
         )
+        #Ném lỗi
         raise PermissionError(
             "⚠️ Tôi không thể xử lý yêu cầu này. Tin nhắn có chứa nội dung vi phạm chính sách bảo mật."
         )
     # ─────────────────────────────────────────────────────────────────────
 
     # Query current user's name and email
+    #Truy vấn tên và email của người dùng
     user_res = await db.execute(select(User).where(User.id == user_id))
+    #Lấy thông tin người dùng
     user_obj = user_res.scalar_one_or_none()
+    #Lấy email và tên người dùng
     user_email = user_obj.email if user_obj else None
+    #Lấy tên người dùng
     user_name = user_obj.name if user_obj else None
 
     # Get or create session
+    #Lấy hoặc tạo session
     if session_id in ["undefined", "null", ""]:
         session_id = None
-        
+    #Lấy session nếu có
     session = None
+    #Truy vấn session
     if session_id:
         result = await db.execute(
             select(AiChatSession).where(AiChatSession.id == session_id, AiChatSession.user_id == user_id)
         )
+        #Lấy session
         session = result.scalar_one_or_none()
-
+    #Nếu không có session
     if not session:
+        #Tạo session mới
         session = AiChatSession(user_id=user_id, title=message[:60])
+        #Thêm session vào db
         db.add(session)
         await db.flush()
 
@@ -491,10 +536,13 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         .order_by(AiChatMessage.created_at.desc())
         .limit(16)
     )
+    #Lấy lịch sử hội thoại
     history = list(reversed(result.scalars().all()))
 
     # ── Detect intent with conversation history ────────────────
+    #Lấy lịch sử hội thoại
     intent_history = [m for m in history if m.id != user_msg.id]
+    #Phát hiện ý định
     intent_data = await detect_intent(user_id, message, openai, history=intent_history)
     intent = intent_data.get("intent", "general")
 
@@ -726,11 +774,14 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         # in this user's inbox or sent history. This is the last-resort guard
         # against data exfiltration that bypasses the injection-pattern check.
         # ─────────────────────────────────────────────────────────────────
+        # Kiểm tra email có tồn tại trong hộp thư của người dùng không
         if draft_to and not await is_recipient_allowed(draft_to, user_id, db):
+            #Ghi log cảnh báo
             logger.warning(
                 f"Security: Blocked compose/send to unrecognized recipient "
                 f"'{mask_email(draft_to)}' for user {user_id}"
             )
+            #Ném lỗi
             raise PermissionError(
                 f"⚠️ Không thể gửi email đến '{draft_to}'. "
                 "Chỉ có thể gửi/trả lời đến những địa chỉ đã từng liên lạc trong hộp thư."
@@ -823,30 +874,45 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
         }
 
     # ── Search/Aggregation execution ──────────────────────────
+    #Khởi tạo danh sách các email tìm thấy
     relevant_emails: list[Email] = []
+    #Khởi tạo biến thông tin thống kê
     stats_info = ""
 
+    #Đếm số email theo điều kiện
     if intent == "count":
+        #Import thư viện datetime
         from datetime import datetime, timezone
+        #Khởi tạo câu truy vấn đếm số email
         query = select(func.count(Email.id)).where(Email.user_id == user_id)
+        #Lọc email theo điều kiện
         if intent_data.get("sender_query"):
+            #Lấy email từ câu truy vấn
             s = intent_data["sender_query"]
+            #Tạo mẫu tìm kiếm email
             pattern = f"%{s}%"
+            #Truy vấn tìm email theo điều kiện
             query = query.where(or_(Email.sender.ilike(pattern), Email.sender_email.ilike(pattern)))
         if intent_data.get("category_query"):
+            #Lọc email theo điều kiện
             query = query.where(Email.category == intent_data["category_query"].lower())
         if intent_data.get("is_read") is not None:
+            #Lọc email theo điều kiện
             query = query.where(Email.is_read == intent_data["is_read"])
         if intent_data.get("is_starred") is not None:
+            #Lọc email theo điều kiện
             query = query.where(Email.is_starred == intent_data["is_starred"])
         if intent_data.get("date_from"):
             try:
+                #Lấy ngày bắt đầu
                 df = datetime.fromisoformat(intent_data["date_from"].replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+                #Truy vấn tìm email theo điều kiện
                 query = query.where(Email.received_at >= df)
             except Exception:
                 pass
         if intent_data.get("date_to"):
             try:
+                #Lấy ngày kết thúc
                 dt_str = intent_data["date_to"]
                 if len(dt_str) == 10:
                     dt_str += "T23:59:59"
@@ -1145,14 +1211,18 @@ async def chat(user_id: str, message: str, session_id: Optional[str], db: AsyncS
                 logger.warning(f"Full-text fallback search failed in chat: {e}")
 
     # Build context with balanced token budget allocation
+    #Tạo context_parts
     context_parts = []
+    #Tính toán số token cho mỗi email
     PER_EMAIL_TOKEN_BUDGET = MAX_CONTEXT_TOKENS // max(1, len(relevant_emails))
     for i, email in enumerate(relevant_emails, 1):
         # Truncate content individually based on allocated budget
+        #Cắt nội dung email theo ngân sách token
         body_snippet = truncate_to_budget(
             email.body_text or "",
             budget=max(100, PER_EMAIL_TOKEN_BUDGET - 150)  # -150 for headers and metadata
         )
+        #Gán giá trị cho các biến
         category = email.category or "other"
         priority = email.priority or "medium"
         sentiment = email.sentiment or "neutral"
@@ -1569,21 +1639,30 @@ async def get_session_history(user_id: str, session_id: str, db: AsyncSession) -
 
 # ─── Email AI Processing ───────────────────────────────────────
 
+#hàm cắt email
 def smart_truncate_email(body_text: str, max_chars: int = 3000) -> str:
     """Take the first and last parts of a long email body to preserve context and signature/footers."""
+    #Kiểm tra body_text
     if not body_text:
+        #trả về chuỗi rỗng
         return ""
+    #Kiểm tra độ dài của body_text
     if len(body_text) <= max_chars:
+        #trả về body_text
         return body_text
+    #chia đôi độ dài của body_text
     half = max_chars // 2
+    #trả về body_text đã được cắt
     return f"{body_text[:half]}\n\n...[CONTENT TRUNCATED]...\n\n{body_text[-half:]}"
 
-
+#Phân loại email và tóm tắt email
 async def classify_and_summarize(email_id: str, subject: str, body_text: str, db: AsyncSession):
+    #Lấy client
     openai = get_openai_client()
+    #Truncate email
     truncated_body = smart_truncate_email(body_text or "", 3000)
+    #Prompt để phân loại và tóm tắt email
     prompt = f"""Analyze this email and return a JSON object.
-
 Subject: {subject}
 Body: {truncated_body}
 
@@ -1596,16 +1675,20 @@ Return JSON with:
   "key_points": ["bullet point 1 in Vietnamese", "bullet point 2 in Vietnamese", "bullet point 3 in Vietnamese"],
   "suggestion": "actionable suggestion in Vietnamese"
 }}"""
-
+    #Gọi API OpenAI
     try:
         completion = await openai.chat.completions.create(
             model="gpt-4o-mini",
+            #Prompt
             messages=[{"role": "user", "content": prompt}],
+            #Response format
             response_format={"type": "json_object"},
+            #Temperature
             temperature=0,
         )
+        #Parse JSON
         result = json.loads(completion.choices[0].message.content or "{}")
-
+        #Validation
         valid_categories = {"work", "personal", "social", "invoice", "promotion", "security"}
         category = result.get("category", "personal").lower()
         if category == "ads":
@@ -1692,27 +1775,49 @@ async def store_embedding(email_id: str, embedding: list[float], db: AsyncSessio
     )
     await db.commit()
 
-
+#Tìm các email tương tự
 async def search_similar_emails(
-    user_id: str, embedding: list[float], limit: int, db: AsyncSession
+    #với mỗi tham số cần có id và description
+    #user_id: id của user
+    user_id: str, 
+    #embedding: embedding của email
+    embedding: list[float], 
+    #limit: số lượng email cần tìm
+    limit: int, 
+    #database session
+    db: AsyncSession
+    #trả về danh sách email
 ) -> list[Email]:
+    #In ra log
     logger.info(f"Audit: Semantic search triggered for user {user_id}")
+    #format vector_str
     vector_str = f"[{','.join(str(x) for x in embedding)}]"
     try:
+        #Kiểm tra trạng thái của database
         async with db.begin_nested():
+            #Tìm các email tương tự
             rows = await db.execute(
+                #Tìm id của email bằng cách so sánh embedding của email
+                #user_id: id của user
+                #embedding: embedding của email
+                #limit: số lượng email cần tìm
+                #threshold: ngưỡng để so sánh embedding
+
                 text("""SELECT e.id FROM emails e
                        JOIN email_embeddings ee ON e.id = ee.email_id
                        WHERE e.user_id = :user_id
                        AND (ee.embedding <=> :embedding::vector) < :threshold
                        ORDER BY ee.embedding <=> :embedding::vector
                        LIMIT :limit"""),
+
                 {"user_id": user_id, "embedding": vector_str, "limit": limit, "threshold": RAG_DISTANCE_THRESHOLD},
             )
+            #lấy id của email
             email_ids = [row[0] for row in rows.fetchall()]
             if not email_ids:
-                # RAG-3: Retry with wider threshold 0.6 if no results found at 0.4
+                # RAG-3: Tìm kiếm lại với ngưỡng rộng hơn 0.6 nếu không tìm thấy kết quả nào với ngưỡng 0.4
                 rows = await db.execute(
+
                     text("""SELECT e.id FROM emails e
                            JOIN email_embeddings ee ON e.id = ee.email_id
                            WHERE e.user_id = :user_id
@@ -1721,16 +1826,27 @@ async def search_similar_emails(
                            LIMIT :limit"""),
                     {"user_id": user_id, "embedding": vector_str, "limit": limit},
                 )
+                #lấy id của email
                 email_ids = [row[0] for row in rows.fetchall()]
                 if not email_ids:
                     return []
+            #lấy thông tin của email từ id
             result = await db.execute(
+                #lấy id của email bằng cách so sánh embedding của email
+                #user_id: id của user
+                #embedding: embedding của email
+                #limit: số lượng email cần tìm
+                #threshold: ngưỡng để so sánh embedding
                 select(Email).where(Email.id.in_(email_ids), Email.user_id == user_id)
             )
+            #tạo dictionary để lưu trữ thông tin của email
             emails_by_id = {e.id: e for e in result.scalars().all()}
+            #trả về danh sách email
             return [emails_by_id[eid] for eid in email_ids if eid in emails_by_id]
     except Exception as e:
+        #thông báo lỗi
         logger.error(f"Semantic search failed: {e}")
+        #trả về danh sách email rỗng
         return []
 
 
@@ -1772,8 +1888,9 @@ async def delete_chat_message(user_id: str, message_id: str, db: AsyncSession) -
     await db.commit()
     return True
 
-
+#hàm định dạng thông báo discord
 def format_discord_notification(email, ai_result) -> str:
+    #categories_vn: từ điển chứa các danh mục email bằng tiếng việt
     categories_vn = {
         "work": "Công việc",
         "personal": "Cá nhân",
@@ -1783,28 +1900,40 @@ def format_discord_notification(email, ai_result) -> str:
         "security": "Bảo mật",
         "other": "Khác",
     }
+    #priorities_vn: từ điển chứa các mức độ ưu tiên bằng tiếng việt
     priorities_vn = {
         "low": "🟢 Thấp",
         "medium": "🟡 Trung bình",
         "high": "🔴 Cao",
     }
-
+#key để lấy thông tin từ ai_result
     category_key = (ai_result.get("category") or "other").lower()
+    #key để lấy thông tin từ ai_result
     priority_key = (ai_result.get("priority") or "medium").lower()
 
+    #lấy thông tin danh mục và mức độ ưu tiên
     category_vn = categories_vn.get(category_key, "Khác")
+    #lấy thông tin mức độ ưu tiên
     priority_vn = priorities_vn.get(priority_key, "🟡 Trung bình")
-
+    #lấy thông tin người gửi
     sender = email.sender or "Unknown"
+    #lấy thông tin tiêu đề
     subject = email.subject or "(No Subject)"
-
+    #lấy thông tin ngày
     from datetime import timezone, timedelta
+    #lấy thông tin ngày nhận
     received_at = getattr(email, 'received_at', None)
+    #kiểm tra thông tin ngày nhận
     if received_at:
+        #kiểm tra thông tin ngày nhận
         if received_at.tzinfo is None:
+            #thay đổi thông tin ngày nhận
             received_at = received_at.replace(tzinfo=timezone.utc)
+        #tạo thông tin múi giờ việt nam
         vn_tz = timezone(timedelta(hours=7))
+        #thay đổi thông tin ngày nhận sang múi giờ việt nam
         vn_time = received_at.astimezone(vn_tz)
+        #format thông tin ngày nhận
         date_str = vn_time.strftime("%H:%M - %d/%m/%Y")
     else:
         date_str = "N/A"

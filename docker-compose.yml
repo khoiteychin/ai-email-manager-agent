@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # Database PostgreSQL + pgvector
+  db:
+    image: pgvector/pgvector:15
+    container_name: email_agent_db_container
+    restart: always
+    environment:
+      POSTGRES_USER: email_agent_user
+      POSTGRES_PASSWORD: CHANGE_THIS_STRONG_PASSWORD
+      POSTGRES_DB: email_agent_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Backend API
+  backend:
+    build: ./backend
+    container_name: email_agent_backend_container
+    restart: always
+    depends_on:
+      - db
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://email_agent_user:CHANGE_THIS_STRONG_PASSWORD@db:5432/email_agent_db
+    ports:
+      - "3001:3001"
+
+  # Frontend Next.js
+  frontend:
+    build: ./frontend
+    container_name: email_agent_frontend_container
+    restart: always
+    env_file:
+      - ./frontend/.env
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
